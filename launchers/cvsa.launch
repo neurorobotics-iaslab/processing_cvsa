@@ -1,0 +1,43 @@
+<launch>	
+	<!-- ACQUISITION -->
+    <!-- arguments -->
+	<arg name="plugin" default='rosneuro::EGDDevice'/>
+	<arg name="devarg" default='/home/paolo/g2.20240516.125837.calibration.cvsa_lbrb.gdf'/>
+    <!--arg name="devarg" default='/home/paolo/prova32ch.gdf'/-->
+	<arg name="framerate" default='16'/>
+	<arg name="samplerate" default='512'/>
+
+    <!-- node -->
+	<node name="acquisition" pkg="rosneuro_acquisition" type="acquisition" output="screen">
+  	  <param name="~plugin" 	  value="$(arg plugin)"/>
+  	  <param name="~devarg" 	  value="$(arg devarg)"/>
+  	  <param name="~samplerate" value="$(arg samplerate)"/>
+  	  <param name="~framerate"  value="$(arg framerate)"/>
+  	</node> 
+    
+    <!-- PROCESSING -->
+    <!-- arguments -->
+	<rosparam command="load" file="$(find processing_cvsa)/cfg/ringbuffer.yaml"/>
+	<rosparam command="load" file="$(find processing_cvsa)/cfg/qdaCfg.yaml"/>
+	<arg name="plugin_decoder" default='rosneuro::decoder::Qda'/>
+	<arg name="cfg_name" default='QdaCfg'/>
+    <arg name="nchannels" default='38'/>
+    <arg name="wlength" default='256'/>
+    <arg name="wtype" default='2'/>
+    <arg name="novl" default='128'/>
+    <arg name="dolog" default='1'/>
+    <arg name="nsamples" default='32'/>
+
+    <!-- node -->
+	<node name="processing_cvsa_node" pkg="processing_cvsa" type="processing_cvsa_node" output="screen"> 
+		<param name="plugin" 	  value="$(arg plugin_decoder)"/>
+        <param name="cfg_name" 	  value="$(arg cfg_name)"/>
+        <param name="nchannels"   value="$(arg nchannels)"/>
+        <param name="wlength" 	  value="$(arg wlength)"/>
+        <param name="wtype" 	  value="$(arg wtype)"/> <!--2 is hamming-->
+        <param name="novl" 	      value="$(arg novl)"/>
+        <param name="dolog" 	  value="$(arg dolog)"/>
+        <param name="nsamples" 	  value="$(arg nsamples)"/>
+        <param name="samplerate"  value='512'/>
+	</node>
+</launch>
