@@ -28,7 +28,7 @@ private:
     ros::Subscriber sub_;
     rosneuro_msgs::NeuroOutput out_;
 
-    rosneuro::Buffer<double>* buffer_;
+    rosneuro::Buffer<float>* buffer_;
     rosneuro::decoder::Decoder* decoder_;
     bool has_new_data_;
     rosneuro::DynamicMatrix<float> data_in_;
@@ -47,7 +47,7 @@ std::vector<double> ComputeDenCoeffs(int FilterOrder, double Lcutoff, double Ucu
 std::vector<double> ComputeNumCoeffs(int FilterOrder, double Lcutoff, double Ucutoff, std::vector<double> DenC);
 std::vector<double> ComputeHP(int FilterOrder);
 std::vector<double> ComputeLP(int FilterOrder);
-Eigen::MatrixXd filter(const Eigen::MatrixXd& in, const std::vector<double>& b, const std::vector<double>& a);
+Eigen::MatrixXf filter(const Eigen::MatrixXf& in, const std::vector<double>& b, const std::vector<double>& a);
 };
 }
 

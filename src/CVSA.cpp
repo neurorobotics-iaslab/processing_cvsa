@@ -4,7 +4,7 @@ processing::CVSA::CVSA(void) : nh_("~") {
     this->pub_ = this->nh_.advertise<rosneuro_msgs::NeuroOutput>("/cvsa/neuroprediction", 1);
     this->sub_ = this->nh_.subscribe("/neurodata", 1, &processing::CVSA::on_received_data, this);
 
-    this->buffer_ = new rosneuro::RingBuffer<double>();
+    this->buffer_ = new rosneuro::RingBuffer<float>();
     this->decoder_ = new rosneuro::decoder::Decoder();
     this->has_new_data_ = false;
     
@@ -84,17 +84,17 @@ void processing::CVSA::set_message(void){
 }
 
 bool processing::CVSA::classify(void){
-    this->buffer_->add(this->data_in_.transpose().cast<double>()); // [samples x channels]
+    this->buffer_->add(this->data_in_.transpose().cast<float>()); // [samples x channels]
     if(!this->buffer_->isfull()){
         return false;
     }
 
     // Bandpass -> similar results of filter in matlab
-    Eigen::MatrixXd data; // [samples x channels]
+    Eigen::MatrixXf data; // [samples x channels]
     std::vector<double> a, b; 
     a = ComputeDenCoeffs(4, 8.0*2.0/512.0, 14.0*2.0/512.0);
     b = ComputeNumCoeffs(4, 8.0*2.0/512.0, 14.0*2.0/512.0, a);
-    data = filter(this->buffer_->get(),b,a);
+    data = filter(this->buffer_->get(), b, a);
     
     // Rectifing signal
     data = data.array().pow(2);
@@ -103,30 +103,29 @@ bool processing::CVSA::classify(void){
     // Average window ---------> TODO: correct here
     float avg = 1;
     float windowSize = avg * 512;
-    Eigen::MatrixXd s_avg(data.rows(), data.cols());
     Eigen::VectorXd tmp_b = Eigen::VectorXd::Ones(windowSize) / windowSize;
     std::vector<double> b2(tmp_b.data(), tmp_b.data() + tmp_b.size());
     a.erase(a.begin(), a.end());
     a.push_back(1.0);
-    for(int i = 0; i < data.cols(); i++){
-        s_avg.col(i) = filter(data.col(i), b2, a);
-    }
+    data = filter(data, b2, a);
 
+    // Logarithm
+    data = data.array().log();
+
+    // Extract features
     ROS_INFO("Data received: %d x %d", data.rows(), data.cols());
+    Eigen::MatrixXf features = this->decoder_->getFeatures(data);
+    features.transposeInPlace();
+
+    ROS_INFO("Data received: %d x %d", features.rows(), features.cols());
     if(this->outputFile_.is_open()){
-        for(int i = 0; i < s_avg.rows(); i++){
-            for(int j = 0; j < s_avg.cols(); j++){
-                this->outputFile_ << s_avg(i,j) << " ";
+        for(int i = 0; i < features.rows(); i++){
+            for(int j = 0; j < features.cols(); j++){
+                this->outputFile_ << features(i,j) << " ";
             }
             this->outputFile_ << std::endl;
         }
     }
-
-    // Logarithm
-    //tmp.array().log();
-
-    // Extract features (use the decoder function getFeatures)
-    //Eigen::VectorXf features = this->decoder_->getFeatures(tmp);
 
     // classify (use the decoder function apply) and save in rawProb_
     //this->rawProb_ = this->decoder_->apply(features);
@@ -134,17 +133,17 @@ bool processing::CVSA::classify(void){
     return true;
 }
 
-Eigen::MatrixXd processing::CVSA::filter(const Eigen::MatrixXd& in, const std::vector<double>& coeff_b, const std::vector<double>& coeff_a) {
-    Eigen::MatrixXd out(in.rows(), in.cols());
+Eigen::MatrixXf processing::CVSA::filter(const Eigen::MatrixXf& in, const std::vector<double>& coeff_b, const std::vector<double>& coeff_a) {
+    Eigen::MatrixXf out(in.rows(), in.cols());
     for(int i = 0; i < in.cols(); i++){
-        Eigen::VectorXd x = in.col(i);
+        Eigen::VectorXf x = in.col(i);
     
         int len_x = x.size();
         int len_b = coeff_b.size();
         int len_a = coeff_a.size();
 
-        Eigen::VectorXd zi = Eigen::VectorXd::Zero(len_b);  // Initialize zi with zeros
-        Eigen::VectorXd filter_x = Eigen::VectorXd::Zero(len_x);  // Initialize the output with zeros
+        Eigen::VectorXf zi = Eigen::VectorXf::Zero(len_b);  // Initialize zi with zeros
+        Eigen::VectorXf filter_x = Eigen::VectorXf::Zero(len_x);  // Initialize the output with zeros
 
         if (len_a == 1) {
             for (int m = 0; m < len_x; m++) {
