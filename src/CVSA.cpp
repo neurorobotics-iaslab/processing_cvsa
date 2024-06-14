@@ -2,7 +2,7 @@
 
 processing::CVSA::CVSA(void) : nh_("~") { 
     this->pub_ = this->nh_.advertise<rosneuro_msgs::NeuroOutput>("/cvsa/neuroprediction", 1);
-    this->sub_ = this->nh_.subscribe("/neurodata", 2, &processing::CVSA::on_received_data, this);
+    this->sub_ = this->nh_.subscribe("/neurodata", 1, &processing::CVSA::on_received_data, this);
 
     this->buffer_ = new rosneuro::RingBuffer<double>();
     this->decoder_ = new rosneuro::decoder::Decoder();
@@ -101,13 +101,22 @@ bool processing::CVSA::classify(void){
     
 
     // Average window ---------> TODO: correct here
-    Eigen::MatrixXf tmp;
-    tmp = data.colwise().mean().cast<float>();
+    float avg = 1;
+    float windowSize = avg * 512;
+    Eigen::MatrixXd s_avg(data.rows(), data.cols());
+    Eigen::VectorXd tmp_b = Eigen::VectorXd::Ones(windowSize) / windowSize;
+    std::vector<double> b2(tmp_b.data(), tmp_b.data() + tmp_b.size());
+    a.erase(a.begin(), a.end());
+    a.push_back(1.0);
+    for(int i = 0; i < data.cols(); i++){
+        s_avg.col(i) = filter(data.col(i), b2, a);
+    }
+
     ROS_INFO("Data received: %d x %d", data.rows(), data.cols());
     if(this->outputFile_.is_open()){
-        for(int i = 0; i < tmp.rows(); i++){
-            for(int j = 0; j < tmp.cols(); j++){
-                this->outputFile_ << tmp(i,j) << " ";
+        for(int i = 0; i < s_avg.rows(); i++){
+            for(int j = 0; j < s_avg.cols(); j++){
+                this->outputFile_ << s_avg(i,j) << " ";
             }
             this->outputFile_ << std::endl;
         }
