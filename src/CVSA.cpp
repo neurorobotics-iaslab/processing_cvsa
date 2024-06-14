@@ -115,7 +115,6 @@ bool processing::CVSA::classify(void){
     // Extract features
     ROS_INFO("Data received: %d x %d", data.rows(), data.cols());
     Eigen::MatrixXf features = this->decoder_->getFeatures(data);
-    features.transposeInPlace();
 
     ROS_INFO("Data received: %d x %d", features.rows(), features.cols());
     if(this->outputFile_.is_open()){
