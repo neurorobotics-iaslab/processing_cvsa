@@ -1,0 +1,95 @@
+clc; clear all; close all;
+% create the dataset log band power, all channels and freq 8-14 ---> uqual
+% to main4d
+
+start = 2048;
+
+%% process throught matlab
+% not modification needed for these informations
+sampleRate = 512;
+filein = '/home/paolo/cvsa_ws/src/processing_cvsa/test/rawdata.csv';
+data = readmatrix(filein);
+filterOrder = 4;
+band = [8, 14];
+nchannels = 32;
+
+% Apply filtering in band
+disp(['      [PROC] Apply filter ' num2str(band(1)) '-' num2str(band(2)) 'hz']);
+% [b, a] = butter(filterOrder*2, band.*(2/sampleRate),'bandpass');
+% s_band = filter(b,a,data);
+
+[b, a] = butter(filterOrder, band(2)*(2/sampleRate),'low');
+s_low = filter(b,a,data);
+[b, a] = butter(filterOrder, band(1)*(2/sampleRate),'high');
+s_band = filter(b,a,s_low);
+
+% Rect the signal
+disp('      [PROC] Rectifing signal');
+s_power = power(s_band, 2);
+
+% Apply average windows
+disp('      [PROC] Apply average windows');
+avg = 1;
+windowSize = avg * sampleRate;
+s_avg = zeros(size(s_power));
+for ch=1:nchannels
+    s_avg(:,ch) = filter(ones(1, windowSize)/(windowSize), 1, s_power(:,ch));
+end
+
+% Apply log
+disp('      [PROC] Apply log to have log band power');
+s_log = log(s_power);
+
+%%
+s_avg2 = zeros(size(s_power));
+for ch=1:nchannels
+    s_avg2(:,ch) = filter(ones(1, windowSize)/(windowSize), 1, s_power(:,ch));
+end
+
+
+%% Load file of rosneuro
+channelId = 1;
+nsamples = size(data,1);
+SampleRate = 512;
+t = 0:1/SampleRate:nsamples/SampleRate - 1/SampleRate;
+files{1} = '/home/paolo/cvsa_ws/src/processing_cvsa/test/bandpass.csv';
+files{2} = '/home/paolo/cvsa_ws/src/processing_cvsa/test/pow.csv';
+files{3} = '/home/paolo/cvsa_ws/src/processing_cvsa/test/log.csv';
+
+for i=1:length(files)
+    file = files{i};
+    rosneuro_data = readmatrix(file);
+    if i == 1
+        matlab_data = s_band;
+        c_title = "butterworth";
+    elseif i == 2
+        matlab_data = s_power;
+        c_title = "power";
+    elseif i ==3
+        matlab_data = s_log;
+        c_title = "log";
+    end
+
+    figure;
+    subplot(2, 1, 1);
+    hold on;
+    plot(t(start:end), rosneuro_data(start:end, channelId), 'b', 'LineWidth', 1);
+    plot(t(start:end), matlab_data(start:end, channelId), 'r');
+    legend('rosneuro', 'matlab');
+    hold off;
+    grid on;
+
+    subplot(2,1,2)
+    bar(t(start:end), abs(rosneuro_data(start:end, channelId)- matlab_data(start:end, channelId)));
+    grid on;
+    xlabel('time [s]');
+    ylabel('amplitude [uV]');
+    title('Difference')
+
+    sgtitle(['Evaluation' c_title])
+end
+
+
+
+
+
