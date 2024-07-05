@@ -29,6 +29,7 @@ files{5} = '/home/paolo/cvsa_ws/src/processing_cvsa/test/buffer.csv';
 
 for i=1:length(files)
     file = files{i};
+    disp(['Loading file: ' file])
     rosneuro_data = readmatrix(file);
     if i == 1
         matlab_data = s_band;

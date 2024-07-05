@@ -2,6 +2,6 @@
     <!-- PROCESSING TEST -->
     <!-- node -->
     <rosparam command="load" file="$(find processing_cvsa)/test/ringbuffer.yaml"/>
-	<node name="test_CVSA" pkg="processing_cvsa" type="test_CVSA" output="screen"> 
+	<node name="test_CVSA_processing" pkg="processing_cvsa" type="test_CVSA_processing" output="screen"> 
 	</node>
 </launch>
