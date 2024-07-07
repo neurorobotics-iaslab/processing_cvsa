@@ -160,9 +160,8 @@ CVSA::ClassifyResults CVSA::classify(void){
         // Extract features
         Eigen::VectorXf features = get_features<float>(all_processed_signals, this->idchans_features_, this->features_band_, this->filters_band_);
 
-        // classify (use the decoder function apply) and save in rawProb_
-        //this->rawProb_ = this->decoder_->apply(Eigen::Map<Eigen::VectorXf>(features.data(), features.size()));
-        this->rawProb_ = Eigen::VectorXf::Ones(2);
+        // classify -> try with correct decoder
+        this->rawProb_ = this->decoder_->apply(features);
 
         return CVSA::ClassifyResults::Success;
 
