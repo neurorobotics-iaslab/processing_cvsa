@@ -38,9 +38,7 @@ Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> readCSV(const std::string& file
 
 template<typename T>
 bool str2vecOfvec(std::string current_str,  std::vector<std::vector<T>>& out){
-    unsigned int nrows;
     unsigned int ncols;
-    std::vector<std::vector<float>> temp_matrix;
 
     std::stringstream ss(current_str);
     std::string c_row;
@@ -55,7 +53,6 @@ bool str2vecOfvec(std::string current_str,  std::vector<std::vector<T>>& out){
         out.push_back(row);
     }
 
-    nrows = out.size();
     ncols = out.at(0).size();
 
     // check if always same dimension in temp_matrix
@@ -66,4 +63,34 @@ bool str2vecOfvec(std::string current_str,  std::vector<std::vector<T>>& out){
     }
 
     return true;
+}
+
+int idx_from2vec(std::vector<std::vector<float>> all, Eigen::VectorXf vec){
+    std::vector<float> stdVec(vec.data(), vec.data() + vec.size());
+    for(int i = 0; i < all.size(); i++){
+        if(all.at(i) == stdVec){
+            return i;
+        }
+    }
+    return -1;
+}
+
+template<typename T>
+Eigen::Matrix<T, 1, Eigen::Dynamic> get_features(std::vector<Eigen::Matrix<T, 1, Eigen::Dynamic>> in, std::vector<uint32_t> idchans, Eigen::MatrixXf features_bands, std::vector<std::vector<float>> all_band){
+    Eigen::Matrix<T, 1, Eigen::Dynamic> out;
+    std::vector<T> tmp_out;
+    for(int i = 0; i < idchans.size(); i++){
+        Eigen::VectorXf c_band = features_bands.row(i);
+        int idx_band = idx_from2vec(all_band, c_band);
+        if(idx_band == -1){
+            ROS_ERROR("Error in the extraction of the features");
+            ros::shutdown();
+        }
+
+        tmp_out.push_back(in.at(idx_band).col(i)(0));
+    }
+
+    out = Eigen::Map<Eigen::Matrix<T, 1, Eigen::Dynamic>>(tmp_out.data(), 1, tmp_out.size());
+
+    return out;
 }

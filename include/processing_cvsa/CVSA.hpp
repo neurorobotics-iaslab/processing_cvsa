@@ -39,6 +39,10 @@ private:
     Eigen::VectorXf rawProb_;
     int nsamples_;
     int nchannels_;
+    std::vector<std::vector<float>> filters_band_;
+
+    std::vector<uint32_t> idchans_features_;
+    Eigen::MatrixXf features_band_;
 
     std::vector<rosneuro::Butterworth<float>> filters_low_;
     std::vector<rosneuro::Butterworth<float>> filters_high_;
