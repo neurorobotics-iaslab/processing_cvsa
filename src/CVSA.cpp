@@ -39,6 +39,10 @@ bool CVSA::configure(void){
     }
     this->idchans_features_ = this->decoder_->get_idchans();
     this->features_band_ = this->decoder_->get_bands();
+    if(this->features_band_.rows() != this->idchans_features_.size()){
+        ROS_ERROR("Error in the configuration of the decoder");
+        return false;
+    }
 
     // Filters parameters
     int filterOrder;

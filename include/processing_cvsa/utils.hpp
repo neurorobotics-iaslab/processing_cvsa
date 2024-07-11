@@ -87,7 +87,7 @@ Eigen::Matrix<T, 1, Eigen::Dynamic> get_features(std::vector<Eigen::Matrix<T, 1,
             ros::shutdown();
         }
 
-        tmp_out.push_back(in.at(idx_band).col(i)(0));
+        tmp_out.push_back(in.at(idx_band).col(idchans.at(i))(0));
     }
 
     out = Eigen::Map<Eigen::Matrix<T, 1, Eigen::Dynamic>>(tmp_out.data(), 1, tmp_out.size());
