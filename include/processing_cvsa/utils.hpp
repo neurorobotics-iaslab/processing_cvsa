@@ -1,6 +1,10 @@
+#ifndef UTILS_HPP_
+#define UTILS_HPP_
+
 #include <string>
 #include <eigen3/Eigen/Dense>
 #include <vector>
+#include <fstream>
 
 template<typename T>
 void writeCSV(const std::string& filename, const Eigen::Ref<const Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>>&  matrix) {
@@ -65,8 +69,9 @@ bool str2vecOfvec(std::string current_str,  std::vector<std::vector<T>>& out){
     return true;
 }
 
-int idx_from2vec(std::vector<std::vector<float>> all, Eigen::VectorXf vec){
-    std::vector<float> stdVec(vec.data(), vec.data() + vec.size());
+template<typename T>
+int idx_from2vec(std::vector<std::vector<T>> all, Eigen::VectorXf vec){
+    std::vector<T> stdVec(vec.data(), vec.data() + vec.size());
     for(int i = 0; i < all.size(); i++){
         if(all.at(i) == stdVec){
             return i;
@@ -94,3 +99,5 @@ Eigen::Matrix<T, 1, Eigen::Dynamic> get_features(std::vector<Eigen::Matrix<T, 1,
 
     return out;
 }
+
+#endif

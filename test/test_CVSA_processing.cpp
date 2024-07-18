@@ -1,3 +1,7 @@
+/*
+    simple test with a single bandpass filter
+*/
+
 #include <iostream>
 #include <string>
 #include <ros/ros.h>

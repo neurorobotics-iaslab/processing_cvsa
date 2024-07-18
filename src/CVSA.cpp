@@ -3,11 +3,10 @@
 namespace processing{
 
 CVSA::CVSA(void) : nh_("~") { 
-    this->pub_ = this->nh_.advertise<rosneuro_msgs::NeuroOutput>("/cvsa/neuroprediction", 1);
+    this->pub_ = this->nh_.advertise<processing_cvsa::features>("/cvsa/features", 1);
     this->sub_ = this->nh_.subscribe("/neurodata", 1, &processing::CVSA::on_received_data, this);
 
     this->buffer_ = new rosneuro::RingBuffer<float>();
-    this->decoder_ = new rosneuro::decoder::Decoder();
     this->has_new_data_ = false;
 }
 
@@ -29,18 +28,6 @@ bool CVSA::configure(void){
     // Buffer configuration -> TODO: create the yaml to load with buffer parameters
     if(!this->buffer_->configure("RingBufferCfg")){
         ROS_ERROR("[%s] Buffer not configured correctly", this->buffer_->name().c_str());
-        return false;
-    }
-
-    // Decoder configuration
-    if(!this->decoder_->configure()){
-        ROS_ERROR("[%s] decoder not confgured correctly", this->decoder_->name().c_str());
-        return false;
-    }
-    this->idchans_features_ = this->decoder_->get_idchans();
-    this->features_band_ = this->decoder_->get_bands();
-    if(this->features_band_.rows() != this->idchans_features_.size()){
-        ROS_ERROR("Error in the configuration of the decoder");
         return false;
     }
 
@@ -69,26 +56,12 @@ bool CVSA::configure(void){
         return false;
     }
 
-    // filters parameters
-    windowSize = avg *  sampleRate;
-    Eigen::VectorXd tmp_b = Eigen::VectorXd::Ones(windowSize) / windowSize;
-    std::vector<double> b(tmp_b.data(), tmp_b.data() + tmp_b.size());
-    std::vector<double> a = {1.0};
-
     // Filter configuration
     for(int i = 0; i < this->filters_band_.size(); i++){
-        this->filters_low_.push_back(rosneuro::Butterworth<float>(rosneuro::ButterType::LowPass,  filterOrder,  this->filters_band_[i][1], sampleRate));
-        this->filters_high_.push_back(rosneuro::Butterworth<float>(rosneuro::ButterType::HighPass,  filterOrder,  this->filters_band_[i][0], sampleRate));
+        this->filters_low_.push_back(rosneuro::Butterworth<double>(rosneuro::ButterType::LowPass,  filterOrder,  this->filters_band_[i][1], sampleRate));
+        this->filters_high_.push_back(rosneuro::Butterworth<double>(rosneuro::ButterType::HighPass,  filterOrder,  this->filters_band_[i][0], sampleRate));
     }
 
-    /* if you want to use the yaml files
-    if(this->filter_low_.configure()){
-        ROS_INFO("Filter low configured");
-    }else{
-        ROS_ERROR("Filter low not configured");
-        return false;
-    }
-    */
     return true;
 }
 
@@ -97,17 +70,18 @@ void CVSA::run(){
 
     while(ros::ok()){
         if(this->has_new_data_){
-            if(this->classify() == CVSA::ClassifyResults::Error){
+            CVSA::ClassifyResults res = this->classify();
+            this->has_new_data_ = false;
+            
+            if(res == CVSA::ClassifyResults::Error){
                 ROS_ERROR("Error in CVSA processing");
                 break;
-            }else if(this->classify() == CVSA::ClassifyResults::BufferNotFull){
+            }else if(res == CVSA::ClassifyResults::BufferNotFull){
                 ROS_WARN("Buffer not full");
                 continue;
             }
 
-            this->set_message();
             this->pub_.publish(this->out_);
-            this->has_new_data_ = false;
         }
         ros::spinOnce();
         r.sleep();
@@ -121,17 +95,35 @@ void CVSA::on_received_data(const rosneuro_msgs::NeuroFrame &msg){
     float* ptr_eog;
     ptr_in = const_cast<float*>(msg.eeg.data.data());
     ptr_eog = const_cast<float*>(msg.exg.data.data());
+
     this->data_in_ = Eigen::Map<rosneuro::DynamicMatrix<float>>(ptr_in, this->nchannels_, this->nsamples_);
-    this->out_.neuroheader = msg.neuroheader;
 }
 
-void CVSA::set_message(void){
+void CVSA::set_message(std::vector<Eigen::Matrix<double, 1, Eigen::Dynamic>> data, std::vector<std::vector<float>> filters_band){
+    // flatten the data
+    uint32_t rows = data.size();
+    uint32_t cols = data[0].size();
+
+    std::vector<double> c_data;
+    data.reserve(rows * cols);
+    for (const auto& row : data) {
+        c_data.insert(c_data.end(), row.data(), row.data() + row.size());
+    }
+
+    std::vector<float> c_bands;
+    for(const auto& band : filters_band){
+        c_bands.insert(c_bands.end(), band.begin(), band.end());
+    }
+
     this->out_.header.stamp = ros::Time::now();
-	this->out_.softpredict.data = std::vector<float>(this->rawProb_.data(), this->rawProb_.data() + this->rawProb_.rows() * this->rawProb_.cols());
-    
+	this->out_.data = c_data;
+    this->out_.cols = cols;
+    this->out_.rows = rows;
+    this->out_.bands = c_bands;
 }
 
 CVSA::ClassifyResults CVSA::classify(void){
+
     this->buffer_->add(this->data_in_.transpose().cast<float>()); // [samples x channels]
     if(!this->buffer_->isfull()){
         return CVSA::ClassifyResults::BufferNotFull;
@@ -139,14 +131,16 @@ CVSA::ClassifyResults CVSA::classify(void){
 
     try{
         Eigen::MatrixXf data_buffer = this->buffer_->get();
-        std::vector<Eigen::Matrix<float, 1, Eigen::Dynamic>> all_processed_signals;
+        std::vector<Eigen::Matrix<double, 1, Eigen::Dynamic>> all_processed_signals;
+        std::vector<std::vector<float>> bands;
+
         // iterate over all filters
         for(int i = 0; i < this->filters_low_.size(); i++){
             // Bandpass filter
-            Eigen::MatrixXf data1, data2;
-            Eigen::Matrix<float, 1, Eigen::Dynamic> final_data;
-            data1 = this->filters_low_[i].apply(data_buffer);
-            data2 = this->filters_high_[i].apply(data1);
+            Eigen::MatrixXd data1, data2;
+            Eigen::Matrix<double, 1, Eigen::Dynamic> final_data;
+            data2 = this->filters_low_[i].apply(data_buffer.cast<double>());
+            data1 = this->filters_high_[i].apply(data2);
             
             // Rectifing signal
             data2 = data1.array().pow(2);
@@ -158,14 +152,12 @@ CVSA::ClassifyResults CVSA::classify(void){
             final_data = data1.array().log();
 
             all_processed_signals.push_back(final_data);
+            bands.push_back({this->filters_band_[i][0], this->filters_band_[i][1]});
 
         }
 
-        // Extract features
-        Eigen::VectorXf features = get_features<float>(all_processed_signals, this->idchans_features_, this->features_band_, this->filters_band_);
-
-        // classify -> try with correct decoder
-        this->rawProb_ = this->decoder_->apply(features);
+        // send all the data to the classifier (nbands x nchannels)
+        this->set_message(all_processed_signals, bands);
 
         return CVSA::ClassifyResults::Success;
 

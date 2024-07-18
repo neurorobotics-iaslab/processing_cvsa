@@ -5,17 +5,26 @@ find_package(catkin REQUIRED COMPONENTS
   roscpp
   rosneuro_msgs
   Eigen3
+  rosneuro_filters
   rosneuro_buffers
   rosneuro_buffers_ringbuffer
-  rosneuro_decoder
-  rosneuro_decoder_qda
-  rosneuro_filters
   rosneuro_filters_butterworth
   std_msgs
-)
+  message_generation
+) 
 
 find_library(RTF_LIBRARIES rtfilter)
 find_path(RTF_INCLUDE_DIRS rtfilter.h)
+
+add_message_files(
+  FILES
+  features.msg
+)
+
+generate_messages(
+  DEPENDENCIES
+  std_msgs
+)
 
 catkin_package(
   INCLUDE_DIRS 
@@ -26,15 +35,16 @@ catkin_package(
   CATKIN_DEPENDS
   	roscpp
 	  std_msgs
-	  rosneuro_filters
-    rosneuro_filters_butterworth
+    rosneuro_filters
     rosneuro_buffers
     rosneuro_buffers_ringbuffer
-    rosneuro_decoder
-    rosneuro_decoder_qda
+    rosneuro_filters_butterworth
     rosneuro_msgs
+    message_runtime
   DEPENDS
 )
+
+
 
 ###########
 ## Build ##
@@ -48,8 +58,12 @@ include_directories(
 )
 
 add_library(${PROJECT_NAME} 
-                          src/CVSA.cpp)
-target_link_libraries(${PROJECT_NAME} ${Eigen3_LIBRARIES} 
+                          src/CVSA.cpp
+                          #test/Test_CVSA.cpp
+                          )
+
+target_link_libraries(${PROJECT_NAME} 
+                    ${Eigen3_LIBRARIES} 
 									  ${catkin_LIBRARIES})
 
 add_dependencies(${PROJECT_NAME} 
@@ -61,11 +75,18 @@ target_link_libraries(processing_cvsa_node
                           ${catkin_LIBRARIES} 
                           ${PROJECT_NAME}
                           ${RTF_LIBRARIES}
-                          fftw3)
+                          ) # fftw3
+
+#add_executable(test_CVSA_node test/test_CVSA_node.cpp)
+#target_link_libraries(test_CVSA_node 
+#                          ${catkin_LIBRARIES} 
+#                          ${PROJECT_NAME}
+#                          ${RTF_LIBRARIES}
+#                          )
 
 add_executable(test_CVSA_processing test/test_CVSA_processing.cpp)
 target_link_libraries(test_CVSA_processing 
                           ${catkin_LIBRARIES} 
                           ${PROJECT_NAME}
                           ${RTF_LIBRARIES}
-                      )
+                      )  

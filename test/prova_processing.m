@@ -1,4 +1,4 @@
-clc; clear all; close all;
+% clc; clear all; close all;
 % create the dataset log band power, all channels and freq 8-14 ---> uqual
 % to main4d
 
