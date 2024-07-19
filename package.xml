@@ -22,6 +22,7 @@
   <build_export_depend>rosneuro_msgs</build_export_depend>
   <exec_depend>roscpp</exec_depend>
   <exec_depend>rosneuro_msgs</exec_depend>
+    <depend>eigen</depend>
 
   <depend>rosneuro_buffers</depend>
   <depend>rosneuro_buffers_ringbuffer</depend>

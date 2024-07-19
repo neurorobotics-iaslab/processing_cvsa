@@ -1,10 +1,10 @@
 cmake_minimum_required(VERSION 3.0.2)
+#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 project(processing_cvsa)
 
 find_package(catkin REQUIRED COMPONENTS
   roscpp
   rosneuro_msgs
-  Eigen3
   rosneuro_filters
   rosneuro_buffers
   rosneuro_buffers_ringbuffer
@@ -12,7 +12,9 @@ find_package(catkin REQUIRED COMPONENTS
   std_msgs
   message_generation
 ) 
+find_package(PkgConfig)
 
+find_package(Eigen3 REQUIRED)
 find_library(RTF_LIBRARIES rtfilter)
 find_path(RTF_INCLUDE_DIRS rtfilter.h)
 
@@ -54,12 +56,11 @@ include_directories(
   include
   ${catkin_INCLUDE_DIRS}
   ${EIGEN3_INCLUDE_DIRS}
-  ${RTF_INCLUDE_DIRS}
 )
 
 add_library(${PROJECT_NAME} 
-                          src/CVSA.cpp
-                          #test/Test_CVSA.cpp
+                          #src/CVSA.cpp
+                          test/Test_CVSA.cpp
                           )
 
 target_link_libraries(${PROJECT_NAME} 
@@ -70,19 +71,18 @@ add_dependencies(${PROJECT_NAME}
 				 ${catkin_EXPORTED_TARGETS}
 )
 
-add_executable(processing_cvsa_node src/processing_node.cpp)
-target_link_libraries(processing_cvsa_node 
+#add_executable(processing_cvsa_node src/processing_node.cpp) # online
+#target_link_libraries(processing_cvsa_node 
+#                          ${catkin_LIBRARIES} 
+#                          ${PROJECT_NAME}
+#                          ) # fftw3 ${RTF_LIBRARIES}
+
+add_executable(test_CVSA_node test/test_CVSA_node.cpp) # test all
+target_link_libraries(test_CVSA_node 
                           ${catkin_LIBRARIES} 
                           ${PROJECT_NAME}
                           ${RTF_LIBRARIES}
-                          ) # fftw3
-
-#add_executable(test_CVSA_node test/test_CVSA_node.cpp)
-#target_link_libraries(test_CVSA_node 
-#                          ${catkin_LIBRARIES} 
-#                          ${PROJECT_NAME}
-#                          ${RTF_LIBRARIES}
-#                          )
+                          )
 
 add_executable(test_CVSA_processing test/test_CVSA_processing.cpp)
 target_link_libraries(test_CVSA_processing 

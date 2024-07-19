@@ -9,7 +9,6 @@
 #include <processing_cvsa/utils.hpp>
 #include <processing_cvsa/features.h>
 #include <rosneuro_filters_butterworth/Butterworth.h>
-#pragma once
 
 namespace processing{
 
