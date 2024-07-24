@@ -77,7 +77,7 @@ void CVSA::run(){
                 ROS_ERROR("Error in CVSA processing");
                 break;
             }else if(res == CVSA::ClassifyResults::BufferNotFull){
-                ROS_WARN("Buffer not full");
+                ROS_WARN("[CSVA processing] Buffer not full");
                 continue;
             }
 

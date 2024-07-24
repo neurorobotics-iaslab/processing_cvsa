@@ -141,11 +141,11 @@ void Test_CVSA::run(){
                 ROS_ERROR("Error in CVSA processing");
                 break;
             }else if(res == Test_CVSA::ClassifyResults::BufferNotFull){
-                ROS_WARN("Buffer not full");
+                ROS_WARN("[Test CSVA processing] Buffer not full");
                 continue;
             }
 
-            std::cout << "publishing..." << std::endl;
+            //std::cout << "publishing..." << std::endl;
             this->pub_.publish(this->out_);
         }
         ros::spinOnce();
