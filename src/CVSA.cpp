@@ -74,7 +74,7 @@ void CVSA::run(){
             this->has_new_data_ = false;
             
             if(res == CVSA::ClassifyResults::Error){
-                ROS_ERROR("Error in CVSA processing");
+                ROS_ERROR("[CSVA processing] Error in CVSA processing");
                 break;
             }else if(res == CVSA::ClassifyResults::BufferNotFull){
                 ROS_WARN("[CSVA processing] Buffer not full");
@@ -162,7 +162,7 @@ CVSA::ClassifyResults CVSA::classify(void){
         return CVSA::ClassifyResults::Success;
 
     }catch(std::exception& e){
-        ROS_ERROR("Error in CVSA processing: %s", e.what());
+        ROS_ERROR("[CSVA processing] Error in CVSA processing: %s", e.what());
         return CVSA::ClassifyResults::Error;
     }
 }
