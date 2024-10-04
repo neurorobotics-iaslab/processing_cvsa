@@ -57,6 +57,10 @@ bool Test_CVSA::configure(void){
         ROS_ERROR("[Processing] Missing 'nsamples' parameter, which is a mandatory parameter");
         return false;
     }
+    if(ros::param::get("~modality", this->modality_) == false){
+        ROS_ERROR("[Processing] Missing 'modality' parameter, which is a mandatory parameter");
+        return false;
+    }
 
     // Buffer configuration -> TODO: create the yaml to load with buffer parameters
     if(!this->buffer_->configure("RingBufferCfg")){
@@ -66,7 +70,7 @@ bool Test_CVSA::configure(void){
 
     // Filters parameters
     int filterOrder;
-    float sampleRate, avg, windowSize;
+    float sampleRate;
     std::string band_str;
     if(ros::param::get("~filter_order", filterOrder) == false){
         ROS_ERROR("[Processing] Missing 'filter_order' parameter, which is a mandatory parameter");
@@ -84,16 +88,6 @@ bool Test_CVSA::configure(void){
         ROS_ERROR("[Processing] Error in 'filters_band' parameter");
         return false;
     }
-    if(ros::param::get("~avg", avg) == false){
-        ROS_ERROR("[Processing] Missing 'avg' parameter, which is a mandatory parameter");
-        return false;
-    }
-
-    // filters parameters
-    windowSize = avg *  sampleRate;
-    Eigen::VectorXd tmp_b = Eigen::VectorXd::Ones(windowSize) / windowSize;
-    std::vector<double> b(tmp_b.data(), tmp_b.data() + tmp_b.size());
-    std::vector<double> a = {1.0};
 
     // Filter configuration
     for(int i = 0; i < this->filters_band_.size(); i++){
@@ -122,9 +116,6 @@ bool Test_CVSA::configure(void){
             std::cout << "file for filter " << std::to_string(i) << "opened" << std::endl;
         }
     }
-
-    //this->filter_low_test_ = rosneuro::Butterworth<double>(rosneuro::ButterType::LowPass,  4,  12, 512);
-    //this->filter_high_test_ = rosneuro::Butterworth<double>(rosneuro::ButterType::HighPass,  4,  10, 512);
 
     return true;
 }
@@ -161,8 +152,17 @@ void Test_CVSA::on_received_data(const rosneuro_msgs::NeuroFrame &msg){
     ptr_in = const_cast<float*>(msg.eeg.data.data());
     ptr_eog = const_cast<float*>(msg.exg.data.data());
     
-    this->data_in_ = Eigen::Map<rosneuro::DynamicMatrix<float>>(ptr_in, this->nchannels_, this->nsamples_);
-    
+    if(this->modality_ == "online"){
+        this->data_in_ = Eigen::Map<rosneuro::DynamicMatrix<float>>(ptr_in, this->nchannels_, this->nsamples_); // channels x sample
+    }else if(this->modality_ == "offline"){
+        Eigen::MatrixXf eeg_data = Eigen::Map<rosneuro::DynamicMatrix<float>>(ptr_in, this->nchannels_ - 1, this->nsamples_); // for the eog
+        Eigen::MatrixXf eog_data = Eigen::Map<Eigen::Matrix<float, 1, -1>>(ptr_eog, 1, this->nsamples_);
+        this->data_in_ = Eigen::MatrixXf(this->nchannels_, this->nsamples_); // channels x sample
+
+        // only the last channel is classified as eog (even if it is wrong, since the eog channel is the 18 in py notation)
+        this->data_in_.block(0, 0, this->nchannels_-1, this->nsamples_) = eeg_data;
+        this->data_in_.row(this->nchannels_-1) = eog_data;
+    }
 }
 
 void Test_CVSA::set_message(std::vector<Eigen::Matrix<double, 1, Eigen::Dynamic>> data, std::vector<std::vector<float>> filters_band){

@@ -60,6 +60,8 @@ private:
     std::vector<std::ofstream> outputFile_filtered_;
     std::ofstream outputFile_features_; 
 
+    std::string modality_;
+
 };
 }
 

@@ -47,7 +47,7 @@ protected:
     std::vector<rosneuro::Butterworth<double>> filters_high_;
 
     processing_cvsa::features out_;
-
+    std::string modality_;
 };
 }
 
