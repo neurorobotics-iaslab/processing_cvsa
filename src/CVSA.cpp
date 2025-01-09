@@ -96,7 +96,7 @@ void CVSA::on_received_data(const rosneuro_msgs::NeuroFrame &msg){
     ptr_in = const_cast<float*>(msg.eeg.data.data());
     ptr_eog = const_cast<float*>(msg.exg.data.data());
     
-    if(this->modality_ == "online"){
+    if(this->modality_ == "online"){ // reminder: if EOG the last channel is mapped in the exg
         this->data_in_ = Eigen::Map<rosneuro::DynamicMatrix<float>>(ptr_in, this->nchannels_, this->nsamples_); // channels x sample
     }else if(this->modality_ == "offline"){
         Eigen::MatrixXf eeg_data = Eigen::Map<rosneuro::DynamicMatrix<float>>(ptr_in, this->nchannels_ - 1, this->nsamples_); // for the eog
