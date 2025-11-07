@@ -1,74 +1,83 @@
-% clc; clear all; close all;
-% create the dataset log band power, all channels and freq 8-14 ---> uqual
-% to main4d
-
-start = 1;
+clc; clear all; close all;
 
 %% process throught matlab
 % not modification needed for these informations
-sampleRate = 512;
-filein = '/home/paolo/cvsa_ws/src/processing_cvsa/test/rawdata.csv';
+datapath = '/home/paolo/cvsa/ic_cvsa_ws/src/processing_cvsa/test/';
+filein = [datapath ,'rawdata.csv'];
 data = readmatrix(filein);
 filterOrder = 4;
 band = [8, 14];
 bufferSize = 512;
+sampleRate = 512;
 frameSize = 32;
+nsamples = size(data, 1);
+nchannels = size(data, 2);
 
-[s_buffer, s_band, s_pow, s_avg, s_log] = online_rosneuro(data, bufferSize, frameSize, band, filterOrder, sampleRate);
+%% apply the processing
+disp(['      [INFO] start processing like ros for band ' num2str(band(1)) '-' num2str(band(2))]);
+nchunks = nsamples / frameSize;
+buffer = nan(bufferSize, nchannels);
 
+[b_low, a_low] = butter(filterOrder, band(2)*(2/sampleRate),'low');
+[b_high, a_high] = butter(filterOrder, band(1)*(2/sampleRate),'high');
+zi_low = [];
+zi_high = [];
+
+signal_processed = nan(nchunks - bufferSize/frameSize + 1, nchannels);
+
+for i=1:nchunks
+    % add
+    frame = data((i-1)*frameSize+1:i*frameSize,:);
+    buffer(1:end-frameSize,:) = buffer(frameSize+1:end,:);
+    buffer(end-frameSize+1:end, :) = frame;
+
+    % check
+    if any(isnan(buffer))
+        continue;
+    end
+
+    % apply low and high pass filters
+    [tmp_data, zi_low] = filter(b_low,a_low,buffer,zi_low);
+    [tmp_data,zi_high] = filter(b_high,a_high,tmp_data,zi_high);
+
+    % apply power with hilbert
+    analytic = hilbert(tmp_data);
+    tmp_data = abs(analytic).^2;
+
+    % apply average
+    tmp_data = mean(tmp_data, 1);
+
+    signal_processed(i - bufferSize/frameSize + 1,:) = tmp_data;
+end
 
 %% Load file of rosneuro
 channelId = 1;
-SampleRate = 512;
+SampleRate = 16;
+start = 1;
 
-files{1} = '/home/paolo/cvsa_ws/src/processing_cvsa/test/bandpass.csv';
-files{2} = '/home/paolo/cvsa_ws/src/processing_cvsa/test/pow.csv';
-files{3} = '/home/paolo/cvsa_ws/src/processing_cvsa/test/avg.csv';
-files{4} = '/home/paolo/cvsa_ws/src/processing_cvsa/test/log.csv';
-files{5} = '/home/paolo/cvsa_ws/src/processing_cvsa/test/buffer.csv';
+files{1} = [datapath 'processing.csv'];
 
 for i=1:length(files)
     file = files{i};
     disp(['Loading file: ' file])
-    rosneuro_data = readmatrix(file);
-    if i == 1
-        matlab_data = s_band;
-        c_title = "butterworth";
-        nsamples = size(matlab_data,1);
-        t = 0:1/SampleRate:nsamples/SampleRate - 1/SampleRate;
-    elseif i == 2
-        matlab_data = s_pow;
-        c_title = "power";
-        nsamples = size(matlab_data,1);
-        t = 0:1/SampleRate:nsamples/SampleRate - 1/SampleRate;
-    elseif i ==3
-        matlab_data = s_avg;
-        c_title = "avg";
-        nsamples = size(matlab_data,1);
-        t = 0:1/SampleRate:nsamples/SampleRate - 1/SampleRate;
-    elseif i ==4
-        matlab_data = s_log;
-        c_title = "log";
-        nsamples = size(matlab_data,1);
-        t = 0:1/SampleRate:nsamples/SampleRate - 1/SampleRate;
-    else
-        matlab_data = s_buffer;
-        c_title = "buffer";
-        nsamples = size(matlab_data,1);
-        t = 0:1/SampleRate:nsamples/SampleRate - 1/SampleRate;
-    end
+    ros_data = readmatrix(file);
+    matlab_data = signal_processed;
+    c_title = "processed";
+    nsamples = size(matlab_data,1);
+    t = 0:1/SampleRate:nsamples/SampleRate - 1/SampleRate;
+
 
     figure;
     subplot(2, 1, 1);
     hold on;
-    plot(t(start:end), rosneuro_data(start:end, channelId), 'b', 'LineWidth', 1);
+    plot(t(start:end), ros_data(start:end, channelId), 'b', 'LineWidth', 1);
     plot(t(start:end), matlab_data(start:end, channelId), 'r');
     legend('rosneuro', 'matlab');
     hold off;
     grid on;
 
     subplot(2,1,2)
-    bar(t(start:end), abs(rosneuro_data(start:end, channelId)- matlab_data(start:end, channelId)));
+    bar(t(start:end), abs(ros_data(start:end, channelId)- matlab_data(start:end, channelId)));
     grid on;
     xlabel('time [s]');
     ylabel('amplitude [uV]');

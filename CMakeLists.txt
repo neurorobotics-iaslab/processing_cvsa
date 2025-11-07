@@ -61,12 +61,12 @@ include_directories(
 # online CVSA library
 add_library(${PROJECT_NAME}
                           src/CVSA.cpp
-                          #test/Test_CVSA.cpp
                           )
 
 target_link_libraries(${PROJECT_NAME}
                     ${Eigen3_LIBRARIES} 
-									  ${catkin_LIBRARIES})
+									  ${catkin_LIBRARIES}
+                    fftw3)
 
 add_dependencies(${PROJECT_NAME}
 				 ${catkin_EXPORTED_TARGETS}
@@ -75,20 +75,15 @@ add_dependencies(${PROJECT_NAME}
 
 
 ################ EXEC
-add_executable(processing_cvsa_node src/processing_node.cpp) # online
+add_executable(processing_cvsa_node src/processing_node.cpp)
 target_link_libraries(processing_cvsa_node 
-${PROJECT_NAME}
-                          ${RTF_LIBRARIES}
-                          ) # fftw3 
+                        ${PROJECT_NAME}
+                        ${RTF_LIBRARIES}
+                        ) 
 
-#add_executable(test_CVSA_node test/test_CVSA_node.cpp) # test all
-#target_link_libraries(test_CVSA_node 
-#${PROJECT_NAME}
-#                          ${RTF_LIBRARIES}
-#                          )
-#
-#add_executable(test_CVSA_processing test/test_CVSA_processing.cpp)
-#target_link_libraries(test_CVSA_processing 
-#${PROJECT_NAME}
-#                        ${RTF_LIBRARIES}
-#                      )  
+
+add_executable(test_CVSA_processing test/test_CVSA_processing.cpp)
+target_link_libraries(test_CVSA_processing 
+                      ${PROJECT_NAME}
+                      ${RTF_LIBRARIES}
+                      )  

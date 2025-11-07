@@ -3,14 +3,49 @@
 namespace processing{
 
 CVSA::CVSA(void) : nh_("~") { 
-    this->pub_ = this->nh_.advertise<processing_cvsa::features>("/cvsa/features", 1);
+    this->pub_ = this->nh_.advertise<processing_cvsa::features>("/cvsa/eeg_power", 1);
     this->sub_ = this->nh_.subscribe("/neurodata", 1, &processing::CVSA::on_received_data, this);
 
     this->buffer_ = new rosneuro::RingBuffer<float>();
     this->has_new_data_ = false;
 }
 
+CVSA::CVSA(int nchannels, int nsamples, int bufferSize, int filterOrder, int sampleRate, std::string band_str){
+    this->nchannels_ = nchannels;
+    this->nsamples_ = nsamples;
+    this->modality_ = "";
+    this->buffer_ = new rosneuro::RingBuffer<float>();
+
+    if(!str2vecOfvec<float>(band_str, this->filters_band_)){
+        ROS_ERROR("[Processing] Error in 'filters_band' parameter");
+    }
+
+    for(int i = 0; i < this->filters_band_.size(); i++){
+        this->filters_low_.push_back(rosneuro::Butterworth<double>(rosneuro::ButterType::LowPass,  filterOrder,  this->filters_band_[i][1], sampleRate));
+        this->filters_high_.push_back(rosneuro::Butterworth<double>(rosneuro::ButterType::HighPass,  filterOrder,  this->filters_band_[i][0], sampleRate));
+    }
+
+    // fftw configuration for hilbert
+    this->fft_buffer_size_ = bufferSize;
+    this->fft_in_   = (fftw_complex*) fftw_malloc(sizeof(fftw_complex) * fft_buffer_size_);
+    this->fft_freq_ = (fftw_complex*) fftw_malloc(sizeof(fftw_complex) * fft_buffer_size_);
+    this->fft_out_  = (fftw_complex*) fftw_malloc(sizeof(fftw_complex) * fft_buffer_size_);
+    
+    this->plan_fwd_ = fftw_plan_dft_1d(fft_buffer_size_, fft_in_, fft_freq_, 
+                                 FFTW_FORWARD, FFTW_ESTIMATE);
+    this->plan_bwd_ = fftw_plan_dft_1d(fft_buffer_size_, fft_freq_, fft_out_, 
+                                 FFTW_BACKWARD, FFTW_ESTIMATE);
+
+}
+
 CVSA::~CVSA(){
+    fftw_destroy_plan(this->plan_fwd_);
+    fftw_destroy_plan(this->plan_bwd_);
+    fftw_free(this->fft_in_);
+    fftw_free(this->fft_freq_);
+    fftw_free(this->fft_out_);
+
+    delete this->buffer_;
 }
 
 
@@ -62,6 +97,17 @@ bool CVSA::configure(void){
         this->filters_high_.push_back(rosneuro::Butterworth<double>(rosneuro::ButterType::HighPass,  filterOrder,  this->filters_band_[i][0], sampleRate));
     }
 
+    // fftw configuration for hilbert
+    this->buffer_->getParam(std::string("size"), this->fft_buffer_size_);
+    this->fft_in_   = (fftw_complex*) fftw_malloc(sizeof(fftw_complex) * fft_buffer_size_);
+    this->fft_freq_ = (fftw_complex*) fftw_malloc(sizeof(fftw_complex) * fft_buffer_size_);
+    this->fft_out_  = (fftw_complex*) fftw_malloc(sizeof(fftw_complex) * fft_buffer_size_);
+    
+    this->plan_fwd_ = fftw_plan_dft_1d(fft_buffer_size_, fft_in_, fft_freq_, 
+                                 FFTW_FORWARD, FFTW_ESTIMATE);
+    this->plan_bwd_ = fftw_plan_dft_1d(fft_buffer_size_, fft_freq_, fft_out_, 
+                                 FFTW_BACKWARD, FFTW_ESTIMATE);
+
     return true;
 }
 
@@ -70,7 +116,7 @@ void CVSA::run(){
 
     while(ros::ok()){
         if(this->has_new_data_){
-            CVSA::ClassifyResults res = this->classify();
+            CVSA::ClassifyResults res = this->apply();
             this->has_new_data_ = false;
             
             if(res == CVSA::ClassifyResults::Error){
@@ -132,7 +178,7 @@ void CVSA::set_message(std::vector<Eigen::Matrix<double, 1, Eigen::Dynamic>> dat
     this->out_.bands = c_bands;
 }
 
-CVSA::ClassifyResults CVSA::classify(void){
+CVSA::ClassifyResults CVSA::apply(void){
 
     this->buffer_->add(this->data_in_.transpose().cast<float>()); // [samples x channels]
     if(!this->buffer_->isfull()){
@@ -140,7 +186,7 @@ CVSA::ClassifyResults CVSA::classify(void){
     }
 
     try{
-        Eigen::MatrixXf data_buffer = this->buffer_->get();
+        Eigen::MatrixXf data_buffer = this->buffer_->get(); // [samples x channels]
         std::vector<Eigen::Matrix<double, 1, Eigen::Dynamic>> all_processed_signals;
         std::vector<std::vector<float>> bands;
 
@@ -152,14 +198,12 @@ CVSA::ClassifyResults CVSA::classify(void){
             data2 = this->filters_low_[i].apply(data_buffer.cast<double>());
             data1 = this->filters_high_[i].apply(data2);
             
-            // Rectifing signal
-            data2 = data1.array().pow(2);
+            // Hibert to compute the power
+            Eigen::MatrixXcd analytic_signal = this->compute_analytic_signal(data1);
+            data2 = analytic_signal.array().abs2();;
 
             // Average window 
-            data1 = data2.colwise().mean();
-
-            // Logarithm
-            final_data = data1.array().log();
+            final_data = data2.colwise().mean();
 
             all_processed_signals.push_back(final_data);
             bands.push_back({this->filters_band_[i][0], this->filters_band_[i][1]});
@@ -175,5 +219,85 @@ CVSA::ClassifyResults CVSA::classify(void){
         ROS_ERROR("[CSVA processing] Error in CVSA processing: %s", e.what());
         return CVSA::ClassifyResults::Error;
     }
+}
+
+std::vector<Eigen::Matrix<double, 1, Eigen::Dynamic>> CVSA::apply(Eigen::MatrixXf data_in){
+
+    try{
+        Eigen::MatrixXf data_buffer = data_in; // [samples x channels]
+        std::vector<Eigen::Matrix<double, 1, Eigen::Dynamic>> all_processed_signals;
+        std::vector<std::vector<float>> bands;
+
+        // iterate over all filters
+        for(int i = 0; i < this->filters_low_.size(); i++){
+            // Bandpass filter
+            Eigen::MatrixXd data1, data2;
+            Eigen::Matrix<double, 1, Eigen::Dynamic> final_data;
+            data2 = this->filters_low_[i].apply(data_buffer.cast<double>());
+            data1 = this->filters_high_[i].apply(data2);
+            
+            // Hibert to compute the power
+            Eigen::MatrixXcd analytic_signal = this->compute_analytic_signal(data1);
+            data2 = analytic_signal.array().abs2();;
+
+            // Average window 
+            final_data = data2.colwise().mean();
+
+            all_processed_signals.push_back(final_data);
+            bands.push_back({this->filters_band_[i][0], this->filters_band_[i][1]});
+
+        }
+
+        return all_processed_signals;
+
+    }catch(std::exception& e){
+        throw std::runtime_error("Error in CVSA processing: " + std::string(e.what()));
+    }
+}
+
+Eigen::MatrixXcd CVSA::compute_analytic_signal(const Eigen::MatrixXd& data){
+    int nrows = data.rows();
+    int nchannels = data.cols();
+    
+    // Check if buffer size matches FFT plan size
+    if (nrows != this->fft_buffer_size_) {
+        throw std::runtime_error("Data size does not match FFTW plan size.");
+    }
+    
+    Eigen::MatrixXcd analytic = Eigen::MatrixXcd(nrows, nchannels);
+
+    for (int j = 0; j < nchannels; ++j) {
+        // 1. Copy data into FFTW input
+        for (int i = 0; i < nrows; ++i) {
+            this->fft_in_[i][0] = data(i, j);
+            this->fft_in_[i][1] = 0.0;
+        }
+
+        // 2. Execute Forward FFT
+        fftw_execute_dft(this->plan_fwd_, this->fft_in_, this->fft_freq_);
+
+        // 3. Modify Spectrum (Zero negative, Double positive)
+        for (int i = 1; i < nrows / 2; ++i) { // Double positive
+            this->fft_freq_[i][0] *= 2.0;
+            this->fft_freq_[i][1] *= 2.0;
+        }
+        for (int i = nrows / 2 + 1; i < nrows; ++i) { // Zero negative
+            this->fft_freq_[i][0] = 0.0;
+            this->fft_freq_[i][1] = 0.0;
+        }
+        // Note: DC (0) and Nyquist (nrows/2) components are left unchanged.
+
+        // 4. Execute Inverse FFT
+        fftw_execute_dft(this->plan_bwd_, this->fft_freq_, this->fft_out_);
+
+        // 5. Copy to Eigen matrix and normalize by nrows
+        for (int i = 0; i < nrows; ++i) {
+            analytic(i, j) = std::complex<double>(
+                this->fft_out_[i][0] / nrows, // Real part
+                this->fft_out_[i][1] / nrows  // Imaginary (Hilbert Tx)
+            );
+        }
+    }
+    return analytic;
 }
 }
