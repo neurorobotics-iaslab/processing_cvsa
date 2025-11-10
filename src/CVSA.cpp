@@ -161,7 +161,7 @@ void CVSA::on_received_data(const rosneuro_msgs::NeuroFrame &msg){
 
 void CVSA::set_message(Eigen::MatrixXd data, std::vector<std::vector<float>> filters_band){
     // flattering data in column major order.
-    Eigen::MatrixXf data_float = data.cast<float>();
+    Eigen::MatrixXf data_float = data.cast<float>(); // [channels x bands]
     this->out_.data.resize(data_float.size()); 
     memcpy(this->out_.data.data(),   
            data_float.data(),     
@@ -173,6 +173,7 @@ void CVSA::set_message(Eigen::MatrixXd data, std::vector<std::vector<float>> fil
         this->out_.bands.insert(this->out_.bands.end(), band.begin(), band.end());
     }
 
+    this->out_.nbands = filters_band.size();
     this->out_.header.stamp = ros::Time::now();
     this->out_.seq = this->seq_id_;
     this->out_.nchannels = this->nchannels_;
