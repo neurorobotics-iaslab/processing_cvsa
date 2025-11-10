@@ -51,18 +51,23 @@ for i=1:nchunks
 end
 
 %% Load file of rosneuro
-channelId = 1;
+channelId = 10;
 SampleRate = 16;
-start = 1;
+start = 50;
 
-files{1} = [datapath 'processing.csv'];
+files{1} = [datapath 'class/processing.csv'];
+files{2} = [datapath 'node/processing.csv'];
 
 for i=1:length(files)
     file = files{i};
     disp(['Loading file: ' file])
     ros_data = readmatrix(file);
     matlab_data = signal_processed;
-    c_title = "processed";
+    if i == 1
+        c_title = "processed with the class";
+    else
+        c_title = "processed with ros node simulation";
+    end
     nsamples = size(matlab_data,1);
     t = 0:1/SampleRate:nsamples/SampleRate - 1/SampleRate;
 
@@ -70,14 +75,14 @@ for i=1:length(files)
     figure;
     subplot(2, 1, 1);
     hold on;
-    plot(t(start:end), ros_data(start:end, channelId), 'b', 'LineWidth', 1);
-    plot(t(start:end), matlab_data(start:end, channelId), 'r');
+    plot(t(start:end), ros_data(start:size(t,2), channelId), 'b', 'LineWidth', 1);
+    plot(t(start:end), matlab_data(start:size(t,2), channelId), 'r');
     legend('rosneuro', 'matlab');
     hold off;
     grid on;
 
     subplot(2,1,2)
-    bar(t(start:end), abs(ros_data(start:end, channelId)- matlab_data(start:end, channelId)));
+    bar(t(start:end), abs(ros_data(start:size(t,2), channelId)- matlab_data(start:size(t,2), channelId)));
     grid on;
     xlabel('time [s]');
     ylabel('amplitude [uV]');

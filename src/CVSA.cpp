@@ -3,21 +3,24 @@
 namespace processing{
 
 CVSA::CVSA(void) : nh_("~") { 
-    this->pub_ = this->nh_.advertise<processing_cvsa::features>("/cvsa/eeg_power", 1);
+    this->pub_ = this->nh_.advertise<processing_cvsa::eeg_power>("/cvsa/eeg_power", 1);
     this->sub_ = this->nh_.subscribe("/neurodata", 1, &processing::CVSA::on_received_data, this);
 
     this->buffer_ = new rosneuro::RingBuffer<float>();
     this->has_new_data_ = false;
 }
 
-CVSA::CVSA(int nchannels, int nsamples, int bufferSize, int filterOrder, int sampleRate, std::string band_str){
+CVSA::CVSA(int nchannels, int frameSize, int bufferSize, int filterOrder, int sampleRate, std::string band_str){
     this->nchannels_ = nchannels;
-    this->nsamples_ = nsamples;
+    this->frameSize_ = frameSize;
     this->modality_ = "";
     this->buffer_ = new rosneuro::RingBuffer<float>();
+    if(!this->buffer_->configure("RingBufferCfg")){
+        throw std::runtime_error("[" + this->buffer_->name() + "] Buffer not configured correctly");
+    }
 
     if(!str2vecOfvec<float>(band_str, this->filters_band_)){
-        ROS_ERROR("[Processing] Error in 'filters_band' parameter");
+        throw std::runtime_error("[Processing] Error in 'filters_band' parameter");
     }
 
     for(int i = 0; i < this->filters_band_.size(); i++){
@@ -55,7 +58,7 @@ bool CVSA::configure(void){
         ROS_ERROR("[Processing] Missing 'nchannels' parameter, which is a mandatory parameter");
         return false;
     }
-    if(ros::param::get("~nsamples", this->nsamples_) == false){
+    if(ros::param::get("~nsamples", this->frameSize_) == false){
         ROS_ERROR("[Processing] Missing 'nsamples' parameter, which is a mandatory parameter");
         return false;
     }
@@ -143,39 +146,36 @@ void CVSA::on_received_data(const rosneuro_msgs::NeuroFrame &msg){
     ptr_eog = const_cast<float*>(msg.exg.data.data());
     
     if(this->modality_ == "online"){ // reminder: if EOG the last channel is mapped in the exg
-        this->data_in_ = Eigen::Map<rosneuro::DynamicMatrix<float>>(ptr_in, this->nchannels_, this->nsamples_); // channels x sample
+        this->data_in_ = Eigen::Map<rosneuro::DynamicMatrix<float>>(ptr_in, this->nchannels_, this->frameSize_); // channels x sample
     }else if(this->modality_ == "offline"){
-        Eigen::MatrixXf eeg_data = Eigen::Map<rosneuro::DynamicMatrix<float>>(ptr_in, this->nchannels_ - 1, this->nsamples_); // for the eog
-        Eigen::MatrixXf eog_data = Eigen::Map<Eigen::Matrix<float, 1, -1>>(ptr_eog, 1, this->nsamples_);
-        this->data_in_ = Eigen::MatrixXf(this->nchannels_, this->nsamples_); // channels x sample
+        Eigen::MatrixXf eeg_data = Eigen::Map<rosneuro::DynamicMatrix<float>>(ptr_in, this->nchannels_ - 1, this->frameSize_); // for the eog
+        Eigen::MatrixXf eog_data = Eigen::Map<Eigen::Matrix<float, 1, -1>>(ptr_eog, 1, this->frameSize_);
+        this->data_in_ = Eigen::MatrixXf(this->nchannels_, this->frameSize_); // channels x sample
 
         // only the last channel is classified as eog (even if it is wrong, since the eog channel is the 18 in py notation)
-        this->data_in_.block(0, 0, this->nchannels_-1, this->nsamples_) = eeg_data;
+        this->data_in_.block(0, 0, this->nchannels_-1, this->frameSize_) = eeg_data;
         this->data_in_.row(this->nchannels_-1) = eog_data;
     }
+    this->seq_id_ = msg.header.seq;
 }
 
-void CVSA::set_message(std::vector<Eigen::Matrix<double, 1, Eigen::Dynamic>> data, std::vector<std::vector<float>> filters_band){
-    // flatten the data
-    uint32_t rows = data.size();
-    uint32_t cols = data[0].size();
+void CVSA::set_message(Eigen::MatrixXd data, std::vector<std::vector<float>> filters_band){
+    // flattering data in column major order.
+    Eigen::MatrixXf data_float = data.cast<float>();
+    this->out_.data.resize(data_float.size()); 
+    memcpy(this->out_.data.data(),   
+           data_float.data(),     
+           data_float.size() * sizeof(float));
 
-    std::vector<double> c_data;
-    data.reserve(rows * cols);
-    for (const auto& row : data) {
-        c_data.insert(c_data.end(), row.data(), row.data() + row.size());
-    }
 
-    std::vector<float> c_bands;
+    this->out_.bands.clear();
     for(const auto& band : filters_band){
-        c_bands.insert(c_bands.end(), band.begin(), band.end());
+        this->out_.bands.insert(this->out_.bands.end(), band.begin(), band.end());
     }
 
     this->out_.header.stamp = ros::Time::now();
-	this->out_.data = c_data;
-    this->out_.cols = cols;
-    this->out_.rows = rows;
-    this->out_.bands = c_bands;
+    this->out_.seq = this->seq_id_;
+    this->out_.nchannels = this->nchannels_;
 }
 
 CVSA::ClassifyResults CVSA::apply(void){
@@ -187,7 +187,7 @@ CVSA::ClassifyResults CVSA::apply(void){
 
     try{
         Eigen::MatrixXf data_buffer = this->buffer_->get(); // [samples x channels]
-        std::vector<Eigen::Matrix<double, 1, Eigen::Dynamic>> all_processed_signals;
+        Eigen::MatrixXd all_processed_signals(this->nchannels_, this->filters_low_.size()); // [channels x bands]
         std::vector<std::vector<float>> bands;
 
         // iterate over all filters
@@ -205,7 +205,7 @@ CVSA::ClassifyResults CVSA::apply(void){
             // Average window 
             final_data = data2.colwise().mean();
 
-            all_processed_signals.push_back(final_data);
+            all_processed_signals.col(i) = final_data.transpose();
             bands.push_back({this->filters_band_[i][0], this->filters_band_[i][1]});
 
         }
@@ -221,11 +221,17 @@ CVSA::ClassifyResults CVSA::apply(void){
     }
 }
 
-std::vector<Eigen::Matrix<double, 1, Eigen::Dynamic>> CVSA::apply(Eigen::MatrixXf data_in){
+Eigen::MatrixXd CVSA::apply(Eigen::MatrixXf data_in){
+    rosneuro::DynamicMatrix<float> tmp_matrix = data_in; 
+    this->buffer_->add(tmp_matrix); // [samples x channels]
+    if(!this->buffer_->isfull()){
+        std::cout << "Buffer not full" << std::endl;
+        return Eigen::MatrixXd();
+    }
 
     try{
-        Eigen::MatrixXf data_buffer = data_in; // [samples x channels]
-        std::vector<Eigen::Matrix<double, 1, Eigen::Dynamic>> all_processed_signals;
+        Eigen::MatrixXf data_buffer = this->buffer_->get(); // [samples x channels]
+        Eigen::MatrixXd all_processed_signals(this->nchannels_, this->filters_low_.size()); // [channels x bands]
         std::vector<std::vector<float>> bands;
 
         // iterate over all filters
@@ -243,7 +249,7 @@ std::vector<Eigen::Matrix<double, 1, Eigen::Dynamic>> CVSA::apply(Eigen::MatrixX
             // Average window 
             final_data = data2.colwise().mean();
 
-            all_processed_signals.push_back(final_data);
+            all_processed_signals.col(i) = final_data.transpose();
             bands.push_back({this->filters_band_[i][0], this->filters_band_[i][1]});
 
         }

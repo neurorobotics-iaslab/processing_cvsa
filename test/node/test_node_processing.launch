@@ -1,0 +1,37 @@
+<launch>
+
+    <!-- PROCESSING -->
+    <!-- arguments -->
+    <rosparam command="load" file="$(find processing_cvsa)/cfg/ringbuffer.yaml"/>
+    <arg name="nchannels" default='32'/>
+    <arg name="framesize" default='32'/>
+    <arg name="modality" default='online'/>
+    <arg name="filter_order" default='4'/>
+    <arg name="samplerate" default='512'/>
+    <arg name='filters_band' default='8.0 14.0;'/>
+
+    <!-- node -->
+    <node name="processing_cvsa_node" pkg="processing_cvsa" type="processing_cvsa_node" output="screen"> 
+        <param name="nchannels"   value="$(arg nchannels)"/>
+        <param name="nsamples"       value="$(arg framesize)"/>
+        <param name="samplerate"  value='$(arg samplerate)'/>
+        <param name="filter_order" value="$(arg filter_order)"/>
+        <param name="modality" value="$(arg modality)"/>
+        <param name="filters_band"           value="$(arg filters_band)"/>
+    </node>
+
+    <!-- TEST NODES -->
+    <!-- logger node -->
+    <node pkg="processing_cvsa" type="test_logger_processing_cvsa" name="test_logger_processing_cvsa" output="screen">
+        <param name="output_filename" value="$(find processing_cvsa)/test/node/processing.csv"/>
+    </node>
+    
+    <!-- publisher node -->
+    <node pkg="processing_cvsa" type="test_publisher_processing_cvsa" name="test_publisher_processing_cvsa" output="screen">
+        <param name="csv_file" value="$(find processing_cvsa)/test/rawdata.csv"/>
+        <param name="chunk_size" value="$(arg framesize)"/>   
+        <param name="sample_rate" value="$(arg samplerate)"/> </node>
+
+    
+
+</launch>

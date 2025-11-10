@@ -8,7 +8,7 @@
 #include <rosneuro_msgs/NeuroFrame.h>
 #include <rosneuro_buffers_ringbuffer/RingBuffer.h>
 #include <processing_cvsa/utils.hpp>
-#include <processing_cvsa/features.h>
+#include <processing_cvsa/eeg_power.h>
 #include <rosneuro_filters_butterworth/Butterworth.h>
 
 namespace processing{
@@ -27,13 +27,13 @@ public:
 
     void on_received_data(const rosneuro_msgs::NeuroFrame &msg);
     void run(void);
-    void set_message(std::vector<Eigen::Matrix<double, 1, Eigen::Dynamic>> data, std::vector<std::vector<float>> filters_band);
+    void set_message(Eigen::MatrixXd data, std::vector<std::vector<float>> filters_band);
 
     Eigen::MatrixXcd compute_analytic_signal(const Eigen::MatrixXd& data);
 
     // for use it as a class
-    CVSA(int nchannels, int nsamples, int bufferSize, int filterOrder, int sampleRate, std::string band_str); 
-    std::vector<Eigen::Matrix<double, 1, Eigen::Dynamic>> apply(Eigen::MatrixXf data_in);
+    CVSA(int nchannels, int frameSize, int bufferSize, int filterOrder, int sampleRate, std::string band_str); 
+    Eigen::MatrixXd apply(Eigen::MatrixXf data_in);
 
 protected:
     ros::NodeHandle nh_;
@@ -44,9 +44,10 @@ protected:
     bool has_new_data_;
     rosneuro::DynamicMatrix<float> data_in_;
     Eigen::VectorXf rawProb_;
-    int nsamples_; // chunk size
+    int frameSize_; // chunk size
     int nchannels_;
     std::vector<std::vector<float>> filters_band_;
+    int seq_id_;
 
     std::vector<uint32_t> idchans_features_;
     Eigen::MatrixXf features_band_;
@@ -54,7 +55,7 @@ protected:
     std::vector<rosneuro::Butterworth<double>> filters_low_;
     std::vector<rosneuro::Butterworth<double>> filters_high_;
 
-    processing_cvsa::features out_;
+    processing_cvsa::eeg_power out_;
     std::string modality_;
 
     // --- FFTW Members for Hilbert Transform ---

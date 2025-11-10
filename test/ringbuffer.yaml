@@ -1,5 +1,0 @@
-RingBufferCfg:
-  name: ringbuffer
-  type: RingBufferFloat
-  params: 
-    size: 512

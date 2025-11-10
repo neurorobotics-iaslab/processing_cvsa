@@ -1,42 +1,36 @@
-<launch>	
-	<!-- ACQUISITION -->
+<launch>    
+    <!-- ACQUISITION -->
     <!-- arguments -->
-	<arg name="plugin" default='rosneuro::EGDDevice'/>
-	<arg name="devarg" default='/home/paolo/prova32ch.gdf'/>
+    <arg name="plugin" default='rosneuro::EGDDevice'/>
+    <arg name="devarg" default='/home/paolo/prova32ch.gdf'/>
     <!--arg name="devarg" default='/home/paolo/prova32ch.gdf'/-->
-	<arg name="framerate" default='16'/>
-	<arg name="samplerate" default='512'/>
+    <arg name="framerate" default='16'/>
+    <arg name="samplerate" default='512'/>
 
     <!-- node -->
-	<node name="acquisition" pkg="rosneuro_acquisition" type="acquisition" output="screen">
-  	  <param name="~plugin" 	  value="$(arg plugin)"/>
-  	  <param name="~devarg" 	  value="$(arg devarg)"/>
-  	  <param name="~samplerate" value="$(arg samplerate)"/>
-  	  <param name="~framerate"  value="$(arg framerate)"/>
-  	</node> 
+    <node name="acquisition" pkg="rosneuro_acquisition" type="acquisition" output="screen">
+        <param name="~plugin"       value="$(arg plugin)"/>
+        <param name="~devarg"       value="$(arg devarg)"/>
+        <param name="~samplerate" value="$(arg samplerate)"/>
+        <param name="~framerate"  value="$(arg framerate)"/>
+      </node> 
     
     <!-- PROCESSING -->
     <!-- arguments -->
-	<rosparam command="load" file="$(find processing_cvsa)/cfg/ringbuffer.yaml"/>
-	<rosparam command="load" file="$(find processing_cvsa)/cfg/qdaCfg.yaml"/>
-	<arg name="plugin_decoder" default='rosneuro::decoder::Qda'/>
-	<arg name="cfg_name" default='QdaCfg'/>
-    <arg name="nchannels" default='32'/>
+    <rosparam command="load" file="$(find processing_cvsa)/cfg/ringbuffer.yaml"/>
+    <arg name="nchannels" default='39'/>
     <arg name="nsamples" default='32'/>
-    <arg name="avg" default='1'/>
+    <arg name="modality" default='online'/>
     <arg name="filter_order" default='4'/>
-    <arg name='filters_band' default='8.0 14.0; 6.0 9.0; 9.0 12.0; 12.0 15.0; 15.0 18.0; 18.0 21.0;'/>
+    <arg name='filters_band' default='8.0 14.0;'/>
 
     <!-- node -->
-	<node name="processing_cvsa_node" pkg="processing_cvsa" type="processing_cvsa_node" output="screen"> 
-		<param name="plugin" 	  value="$(arg plugin_decoder)"/>
-        <param name="cfg_name" 	  value="$(arg cfg_name)"/>
+    <node name="processing_cvsa_node" pkg="processing_cvsa" type="processing_cvsa_node" output="screen"> 
         <param name="nchannels"   value="$(arg nchannels)"/>
-        <param name="nsamples" 	  value="$(arg nsamples)"/>
+        <param name="nsamples"       value="$(arg nsamples)"/>
         <param name="samplerate"  value='$(arg samplerate)'/>
-        <param name="avg" 		  value="$(arg avg)"/>
         <param name="filter_order" value="$(arg filter_order)"/>
-        <param name="filters_band" 		  value="$(arg filters_band)"/>
-        <!--rosparam param="band"> [8.0, 14.0]</rosparam-->
-	</node>
+        <param name="modality" value="$(arg modality)"/>
+        <param name="filters_band"           value="$(arg filters_band)"/>
+    </node>
 </launch>
