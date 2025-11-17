@@ -8,11 +8,12 @@ CVSA::CVSA(void) : nh_("~") {
 
     this->buffer_ = new rosneuro::RingBuffer<float>();
     this->has_new_data_ = false;
+    this->is_configured_ = false;
 }
 
 CVSA::CVSA(int nchannels, int frameSize, int bufferSize, int filterOrder, int sampleRate, std::string band_str){
     this->nchannels_ = nchannels;
-    this->frameSize_ = frameSize;
+    this->chunkSize_ = frameSize;
     this->modality_ = "";
     this->buffer_ = new rosneuro::RingBuffer<float>();
     if(!this->buffer_->configure("RingBufferCfg")){
@@ -39,6 +40,7 @@ CVSA::CVSA(int nchannels, int frameSize, int bufferSize, int filterOrder, int sa
     this->plan_bwd_ = fftw_plan_dft_1d(fft_buffer_size_, fft_freq_, fft_out_, 
                                  FFTW_BACKWARD, FFTW_ESTIMATE);
 
+    this->is_configured_ = true;
 }
 
 CVSA::~CVSA(){
@@ -58,8 +60,8 @@ bool CVSA::configure(void){
         ROS_ERROR("[Processing] Missing 'nchannels' parameter, which is a mandatory parameter");
         return false;
     }
-    if(ros::param::get("~nsamples", this->frameSize_) == false){
-        ROS_ERROR("[Processing] Missing 'nsamples' parameter, which is a mandatory parameter");
+    if(ros::param::get("~chunkSize", this->chunkSize_) == false){
+        ROS_ERROR("[Processing] Missing 'chunkSize' parameter, which is a mandatory parameter");
         return false;
     }
     if(ros::param::get("~modality", this->modality_) == false){
@@ -67,7 +69,7 @@ bool CVSA::configure(void){
         return false;
     }
 
-    // Buffer configuration -> TODO: create the yaml to load with buffer parameters
+    // Buffer configuration 
     if(!this->buffer_->configure("RingBufferCfg")){
         ROS_ERROR("[%s] Buffer not configured correctly", this->buffer_->name().c_str());
         return false;
@@ -111,21 +113,26 @@ bool CVSA::configure(void){
     this->plan_bwd_ = fftw_plan_dft_1d(fft_buffer_size_, fft_freq_, fft_out_, 
                                  FFTW_BACKWARD, FFTW_ESTIMATE);
 
+    this->is_configured_ = true;
     return true;
 }
 
 void CVSA::run(){
     ros::Rate r(512);
+    if(this->is_configured_ == false){
+        ROS_ERROR("[CSVA processing] CVSA not configured correctly");
+        return;
+    }
 
     while(ros::ok()){
         if(this->has_new_data_){
-            CVSA::ClassifyResults res = this->apply();
+            CVSA::ApplyResults res = this->apply();
             this->has_new_data_ = false;
             
-            if(res == CVSA::ClassifyResults::Error){
+            if(res == CVSA::ApplyResults::Error){
                 ROS_ERROR("[CSVA processing] Error in CVSA processing");
                 break;
-            }else if(res == CVSA::ClassifyResults::BufferNotFull){
+            }else if(res == CVSA::ApplyResults::BufferNotFull){
                 ROS_WARN("[CSVA processing] Buffer not full");
                 continue;
             }
@@ -146,20 +153,20 @@ void CVSA::on_received_data(const rosneuro_msgs::NeuroFrame &msg){
     ptr_eog = const_cast<float*>(msg.exg.data.data());
     
     if(this->modality_ == "online"){ // reminder: if EOG the last channel is mapped in the exg
-        this->data_in_ = Eigen::Map<rosneuro::DynamicMatrix<float>>(ptr_in, this->nchannels_, this->frameSize_); // channels x sample
+        this->data_in_ = Eigen::Map<rosneuro::DynamicMatrix<float>>(ptr_in, this->nchannels_, this->chunkSize_); // channels x sample
     }else if(this->modality_ == "offline"){
-        Eigen::MatrixXf eeg_data = Eigen::Map<rosneuro::DynamicMatrix<float>>(ptr_in, this->nchannels_ - 1, this->frameSize_); // for the eog
-        Eigen::MatrixXf eog_data = Eigen::Map<Eigen::Matrix<float, 1, -1>>(ptr_eog, 1, this->frameSize_);
-        this->data_in_ = Eigen::MatrixXf(this->nchannels_, this->frameSize_); // channels x sample
+        Eigen::MatrixXf eeg_data = Eigen::Map<rosneuro::DynamicMatrix<float>>(ptr_in, this->nchannels_ - 1, this->chunkSize_); // for the eog
+        Eigen::MatrixXf eog_data = Eigen::Map<Eigen::Matrix<float, 1, -1>>(ptr_eog, 1, this->chunkSize_);
+        this->data_in_ = Eigen::MatrixXf(this->nchannels_, this->chunkSize_); // channels x sample
 
         // only the last channel is classified as eog (even if it is wrong, since the eog channel is the 18 in py notation)
-        this->data_in_.block(0, 0, this->nchannels_-1, this->frameSize_) = eeg_data;
+        this->data_in_.block(0, 0, this->nchannels_-1, this->chunkSize_) = eeg_data;
         this->data_in_.row(this->nchannels_-1) = eog_data;
     }
     this->seq_id_ = msg.header.seq;
 }
 
-void CVSA::set_message(Eigen::MatrixXd data, std::vector<std::vector<float>> filters_band){
+void CVSA::set_message(Eigen::MatrixXd data){
     // flattering data in column major order.
     Eigen::MatrixXf data_float = data.cast<float>(); // [channels x bands]
     this->out_.data.resize(data_float.size()); 
@@ -169,27 +176,26 @@ void CVSA::set_message(Eigen::MatrixXd data, std::vector<std::vector<float>> fil
 
 
     this->out_.bands.clear();
-    for(const auto& band : filters_band){
+    for(const auto& band : this->filters_band_){
         this->out_.bands.insert(this->out_.bands.end(), band.begin(), band.end());
     }
 
-    this->out_.nbands = filters_band.size();
+    this->out_.nbands = this->filters_band_.size();
     this->out_.header.stamp = ros::Time::now();
     this->out_.seq = this->seq_id_;
     this->out_.nchannels = this->nchannels_;
 }
 
-CVSA::ClassifyResults CVSA::apply(void){
+CVSA::ApplyResults CVSA::apply(void){
 
     this->buffer_->add(this->data_in_.transpose().cast<float>()); // [samples x channels]
     if(!this->buffer_->isfull()){
-        return CVSA::ClassifyResults::BufferNotFull;
+        return CVSA::ApplyResults::BufferNotFull;
     }
 
     try{
         Eigen::MatrixXf data_buffer = this->buffer_->get(); // [samples x channels]
         Eigen::MatrixXd all_processed_signals(this->nchannels_, this->filters_low_.size()); // [channels x bands]
-        std::vector<std::vector<float>> bands;
 
         // iterate over all filters
         for(int i = 0; i < this->filters_low_.size(); i++){
@@ -207,18 +213,17 @@ CVSA::ClassifyResults CVSA::apply(void){
             final_data = data2.colwise().mean();
 
             all_processed_signals.col(i) = final_data.transpose();
-            bands.push_back({this->filters_band_[i][0], this->filters_band_[i][1]});
 
         }
 
         // send all the data to the classifier (nbands x nchannels)
-        this->set_message(all_processed_signals, bands);
+        this->set_message(all_processed_signals);
 
-        return CVSA::ClassifyResults::Success;
+        return CVSA::ApplyResults::Success;
 
     }catch(std::exception& e){
         ROS_ERROR("[CSVA processing] Error in CVSA processing: %s", e.what());
-        return CVSA::ClassifyResults::Error;
+        return CVSA::ApplyResults::Error;
     }
 }
 

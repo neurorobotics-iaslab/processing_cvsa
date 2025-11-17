@@ -69,35 +69,4 @@ bool str2vecOfvec(std::string current_str,  std::vector<std::vector<T>>& out){
     return true;
 }
 
-template<typename T>
-int idx_from2vec(std::vector<std::vector<T>> all, Eigen::VectorXf vec){
-    std::vector<T> stdVec(vec.data(), vec.data() + vec.size());
-    for(int i = 0; i < all.size(); i++){
-        if(all.at(i) == stdVec){
-            return i;
-        }
-    }
-    return -1;
-}
-
-template<typename T>
-Eigen::Matrix<T, 1, Eigen::Dynamic> get_features(std::vector<Eigen::Matrix<T, 1, Eigen::Dynamic>> in, std::vector<uint32_t> idchans, Eigen::MatrixXf features_bands, std::vector<std::vector<float>> all_band){
-    Eigen::Matrix<T, 1, Eigen::Dynamic> out;
-    std::vector<T> tmp_out;
-    for(int i = 0; i < idchans.size(); i++){
-        Eigen::VectorXf c_band = features_bands.row(i);
-        int idx_band = idx_from2vec(all_band, c_band);
-        if(idx_band == -1){
-            ROS_ERROR("Error in the extraction of the features");
-            ros::shutdown();
-        }
-
-        tmp_out.push_back(in.at(idx_band).col(idchans.at(i)-1)(0));  // c++ start from 0 and not from 1 as matlab
-    }
-
-    out = Eigen::Map<Eigen::Matrix<T, 1, Eigen::Dynamic>>(tmp_out.data(), 1, tmp_out.size());
-
-    return out;
-}
-
 #endif

@@ -66,6 +66,7 @@ add_library(${PROJECT_NAME}
 target_link_libraries(${PROJECT_NAME}
                     ${Eigen3_LIBRARIES} 
 									  ${catkin_LIBRARIES}
+                    ${RTF_LIBRARIES}
                     fftw3)
 
 add_dependencies(${PROJECT_NAME}
@@ -79,25 +80,22 @@ add_dependencies(${PROJECT_NAME}
 add_executable(processing_cvsa_node src/processing_node.cpp)
 target_link_libraries(processing_cvsa_node 
                         ${PROJECT_NAME}
-                        ${RTF_LIBRARIES}
+                        
                         ) 
 
 # test class NODE
 add_executable(test_CVSA_processing test/class/test_CVSA_processing.cpp)
 target_link_libraries(test_CVSA_processing 
                       ${PROJECT_NAME}
-                      ${RTF_LIBRARIES}
                       )  
 
 # test rosnode NODE
 add_executable(test_publisher_processing_cvsa test/node/publisher.cpp)
 target_link_libraries(test_publisher_processing_cvsa 
                       ${PROJECT_NAME}
-                      ${RTF_LIBRARIES}
                       )  
 
 add_executable(test_logger_processing_cvsa test/node/logger.cpp)
 target_link_libraries(test_logger_processing_cvsa 
                       ${PROJECT_NAME}
-                      ${RTF_LIBRARIES}
                       )  

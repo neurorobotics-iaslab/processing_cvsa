@@ -4,7 +4,6 @@
 #include <ros/ros.h>
 #include <eigen3/Eigen/Dense>
 #include <fftw3.h>
-#include <rosneuro_msgs/NeuroOutput.h>
 #include <rosneuro_msgs/NeuroFrame.h>
 #include <rosneuro_buffers_ringbuffer/RingBuffer.h>
 #include <processing_cvsa/utils.hpp>
@@ -15,19 +14,19 @@ namespace processing{
 
 class CVSA{
 public:
-    enum class ClassifyResults {BufferNotFull = 0, Error = 1, Success = 2};
+    enum class ApplyResults {BufferNotFull = 0, Error = 1, Success = 2};
 
 public:
     // for ros node
-    CVSA(void); // for ros node
+    CVSA(void); 
     ~CVSA();
 
     bool configure(void);
-    ClassifyResults apply(void);
+    ApplyResults apply(void);
 
     void on_received_data(const rosneuro_msgs::NeuroFrame &msg);
     void run(void);
-    void set_message(Eigen::MatrixXd data, std::vector<std::vector<float>> filters_band);
+    void set_message(Eigen::MatrixXd data);
 
     Eigen::MatrixXcd compute_analytic_signal(const Eigen::MatrixXd& data);
 
@@ -43,14 +42,11 @@ protected:
     rosneuro::Buffer<float>* buffer_;
     bool has_new_data_;
     rosneuro::DynamicMatrix<float> data_in_;
-    Eigen::VectorXf rawProb_;
-    int frameSize_; // chunk size
+    int chunkSize_; // chunk size
     int nchannels_;
     std::vector<std::vector<float>> filters_band_;
     int seq_id_;
-
-    std::vector<uint32_t> idchans_features_;
-    Eigen::MatrixXf features_band_;
+    bool is_configured_;
 
     std::vector<rosneuro::Butterworth<double>> filters_low_;
     std::vector<rosneuro::Butterworth<double>> filters_high_;

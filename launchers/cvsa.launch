@@ -19,7 +19,7 @@
     <!-- arguments -->
     <rosparam command="load" file="$(find processing_cvsa)/cfg/ringbuffer.yaml"/>
     <arg name="nchannels" default='39'/>
-    <arg name="nsamples" default='32'/>
+    <arg name="chunkSize" default='32'/>
     <arg name="modality" default='online'/>
     <arg name="filter_order" default='4'/>
     <arg name='filters_band' default='8.0 14.0;'/>
@@ -27,7 +27,7 @@
     <!-- node -->
     <node name="processing_cvsa_node" pkg="processing_cvsa" type="processing_cvsa_node" output="screen"> 
         <param name="nchannels"   value="$(arg nchannels)"/>
-        <param name="nsamples"       value="$(arg nsamples)"/>
+        <param name="chunkSize"       value="$(arg chunkSize)"/>
         <param name="samplerate"  value='$(arg samplerate)'/>
         <param name="filter_order" value="$(arg filter_order)"/>
         <param name="modality" value="$(arg modality)"/>
