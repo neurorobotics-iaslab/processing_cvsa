@@ -21,7 +21,7 @@ CVSA::CVSA(int nchannels, int frameSize, int bufferSize, int filterOrder, int sa
     }
 
     if(!str2vecOfvec<float>(band_str, this->filters_band_)){
-        throw std::runtime_error("[Processing] Error in 'filters_band' parameter");
+        throw std::runtime_error("[CVSA Processing] Error in 'filters_band' parameter");
     }
 
     for(int i = 0; i < this->filters_band_.size(); i++){
@@ -57,15 +57,15 @@ CVSA::~CVSA(){
 bool CVSA::configure(void){
 
     if(ros::param::get("~nchannels", this->nchannels_) == false){
-        ROS_ERROR("[Processing] Missing 'nchannels' parameter, which is a mandatory parameter");
+        ROS_ERROR("[CVSA Processing] Missing 'nchannels' parameter, which is a mandatory parameter");
         return false;
     }
     if(ros::param::get("~chunkSize", this->chunkSize_) == false){
-        ROS_ERROR("[Processing] Missing 'chunkSize' parameter, which is a mandatory parameter");
+        ROS_ERROR("[CVSA Processing] Missing 'chunkSize' parameter, which is a mandatory parameter");
         return false;
     }
     if(ros::param::get("~modality", this->modality_) == false){
-        ROS_ERROR("[Processing] Missing 'modality' parameter, which is a mandatory parameter");
+        ROS_ERROR("[CVSA Processing] Missing 'modality' parameter, which is a mandatory parameter");
         return false;
     }
 
@@ -80,19 +80,19 @@ bool CVSA::configure(void){
     float sampleRate;
     std::string band_str;
     if(ros::param::get("~filter_order", filterOrder) == false){
-        ROS_ERROR("[Processing] Missing 'filter_order' parameter, which is a mandatory parameter");
+        ROS_ERROR("[CVSA Processing] Missing 'filter_order' parameter, which is a mandatory parameter");
         return false;
     }
     if(ros::param::get("~samplerate", sampleRate) == false){
-        ROS_ERROR("[Processing] Missing 'sample_rate' parameter, which is a mandatory parameter");
+        ROS_ERROR("[CVSA Processing] Missing 'sample_rate' parameter, which is a mandatory parameter");
         return false;
     }
     if(ros::param::get("~filters_band", band_str) == false){
-        ROS_ERROR("[Processing] Missing 'filters_band' parameter, which is a mandatory parameter");
+        ROS_ERROR("[CVSA Processing] Missing 'filters_band' parameter, which is a mandatory parameter");
         return false;
     }
     if(!str2vecOfvec<float>(band_str, this->filters_band_)){
-        ROS_ERROR("[Processing] Error in 'filters_band' parameter");
+        ROS_ERROR("[CVSA Processing] Error in 'filters_band' parameter");
         return false;
     }
 
@@ -134,7 +134,7 @@ void CVSA::run(){
                 break;
             }else if(res == CVSA::ApplyResults::BufferNotFull){
                 ROS_WARN("[CSVA processing] Buffer not full");
-                continue;
+                this->set_message(Eigen::MatrixXd::Ones(this->nchannels_, this->filters_low_.size())); // no error for the log transform
             }
 
             this->pub_.publish(this->out_);
@@ -231,7 +231,6 @@ Eigen::MatrixXd CVSA::apply(Eigen::MatrixXf data_in){
     rosneuro::DynamicMatrix<float> tmp_matrix = data_in; 
     this->buffer_->add(tmp_matrix); // [samples x channels]
     if(!this->buffer_->isfull()){
-        std::cout << "Buffer not full" << std::endl;
         return Eigen::MatrixXd();
     }
 
@@ -263,7 +262,7 @@ Eigen::MatrixXd CVSA::apply(Eigen::MatrixXf data_in){
         return all_processed_signals;
 
     }catch(std::exception& e){
-        throw std::runtime_error("Error in CVSA processing: " + std::string(e.what()));
+        throw std::runtime_error("[CSVA processing] Error in CVSA processing: " + std::string(e.what()));
     }
 }
 
@@ -273,7 +272,8 @@ Eigen::MatrixXcd CVSA::compute_analytic_signal(const Eigen::MatrixXd& data){
     
     // Check if buffer size matches FFT plan size
     if (nrows != this->fft_buffer_size_) {
-        throw std::runtime_error("Data size does not match FFTW plan size.");
+        ROS_ERROR("[CSVA processing] Data size (%d) does not match FFTW plan size (%d).", nrows, this->fft_buffer_size_);
+        throw std::runtime_error("[CSVA processing] Data size does not match FFTW plan size.");
     }
     
     Eigen::MatrixXcd analytic = Eigen::MatrixXcd(nrows, nchannels);
