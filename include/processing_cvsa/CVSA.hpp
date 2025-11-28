@@ -39,11 +39,12 @@ protected:
     ros::Publisher pub_;
     ros::Subscriber sub_;
 
-    rosneuro::Buffer<float>* buffer_;
+    std::vector<rosneuro::Buffer<float>*> buffers_;
     bool has_new_data_;
     rosneuro::DynamicMatrix<float> data_in_;
     int chunkSize_; // chunk size
     int nchannels_;
+    int nfilters_;
     std::vector<std::vector<float>> filters_band_;
     int seq_id_;
     bool is_configured_;
