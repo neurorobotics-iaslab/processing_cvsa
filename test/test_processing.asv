@@ -9,13 +9,13 @@ filterOrder = 4;
 band = [8, 14];
 bufferSize = 512;
 sampleRate = 512;
-chunkSize = 32;
+frameSize = 32;
 nsamples = size(data, 1);
 nchannels = size(data, 2);
 
 %% apply the processing
 disp(['      [INFO] start processing like ros for band ' num2str(band(1)) '-' num2str(band(2))]);
-nchunks = nsamples / chunkSize;
+nchunks = nsamples / frameSize;
 buffer = nan(bufferSize, nchannels);
 
 [b_low, a_low] = butter(filterOrder, band(2)*(2/sampleRate),'low');
@@ -23,17 +23,39 @@ buffer = nan(bufferSize, nchannels);
 zi_low = [];
 zi_high = [];
 
-h.EVENT.POS = [];
-h.EVENT.DUR = [];
-h.SampleRate = 512;
+signal_processed = nan(nchunks - bufferSize/frameSize + 1, nchannels);
 
-[signal_processed, ~] = processing_onlineROS_hilbert(data, h, nchannels, bufferSize, filterOrder, band, chunkSize);
+[signal_processed, header] = processing_onlineROS_hilbert(signal, header, nchannels, bufferSize, filterOrder, band, chunkSize)
+
+for i=1:nchunks
+    % add
+    frame = data((i-1)*frameSize+1:i*frameSize,:);
+    % apply low and high pass filters
+    [tmp_data, zi_low] = filter(b_low,a_low,frame,zi_low);
+    [tmp_data,zi_high] = filter(b_high,a_high,tmp_data,zi_high);
+
+    buffer(1:end-frameSize,:) = buffer(frameSize+1:end,:);
+    buffer(end-frameSize+1:end, :) = tmp_data;
+
+    % check
+    if any(isnan(buffer))
+        continue;
+    end
+
+    % apply power with hilbert
+    analytic = hilbert(buffer);
+    tmp_data = abs(analytic).^2;
+
+    % apply average
+    tmp_data = mean(tmp_data, 1);
+
+    signal_processed(i - bufferSize/frameSize + 1,:) = tmp_data;
+end
 
 %% Load file of rosneuro
 channelId = 10;
 SampleRate = 16;
 start = 50;
-align = 1;
 
 files{1} = [datapath 'class/processing.csv'];
 files{2} = [datapath 'node/processing.csv'];
@@ -44,10 +66,8 @@ for i=1:length(files)
     ros_data = readmatrix(file);
     matlab_data = signal_processed;
     if i == 1
-        matlab_data = matlab_data(16:end,:);
         c_title = "processed with the class";
     else
-        matlab_data = matlab_data(2:end,:);
         c_title = "processed with ros node simulation";
     end
     nsamples = size(matlab_data,1);
