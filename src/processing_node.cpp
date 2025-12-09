@@ -10,7 +10,7 @@ int main(int argc, char** argv) {
     processing::CVSA cvsa;
     
     if(cvsa.configure() == false) {
-        std::cerr<<"SETUP ERROR"<<std::endl;
+        std::cerr<<"[processing_cvsa_node] SETUP ERROR"<<std::endl;
         return -1;
     }
 

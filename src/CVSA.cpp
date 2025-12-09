@@ -78,6 +78,13 @@ bool CVSA::configure(void){
         ROS_ERROR("[CVSA Processing] Missing 'modality' parameter, which is a mandatory parameter");
         return false;
     }
+    if (ros::param::get("~EOG_ch", this->EOG_ch_) == false) { // is important the order!
+        ROS_ERROR("[CVSA Processing] Cannot find param EOG_ch");
+        return false;
+    }
+    for(int i = 0; i < this->EOG_ch_.size(); i++){
+        this->EOG_ch_[i] = this->EOG_ch_[i] - 1; // to bring it in 0 based
+    }
 
     // Filters parameters
     int filterOrder;
@@ -128,6 +135,9 @@ bool CVSA::configure(void){
                                  FFTW_FORWARD, FFTW_ESTIMATE);
     this->plan_bwd_ = fftw_plan_dft_1d(fft_buffer_size_, fft_freq_, fft_out_, 
                                  FFTW_BACKWARD, FFTW_ESTIMATE);
+
+    this->car_filter_ = rosneuro::Car<float>();
+    this->car_filter_.configure(this->EOG_ch_);
 
     this->is_configured_ = true;
     return true;
@@ -205,9 +215,12 @@ void CVSA::set_message(Eigen::MatrixXd data){
 CVSA::ApplyResults CVSA::apply(void){
 
     Eigen::MatrixXd data1, data2;
+    Eigen::MatrixXf car_data;
+
+    car_data = this->car_filter_.apply(this->data_in_.transpose()); // [samples x channels]
 
     for(int i = 0; i < this->nfilters_; i++){
-        data1 = this->filters_low_[i].apply(this->data_in_.transpose().cast<double>());
+        data1 = this->filters_low_[i].apply(car_data.cast<double>());
         data2 = this->filters_high_[i].apply(data1);
         this->buffers_[i]->add(data2.cast<float>()); // [samples x channels]
     }
