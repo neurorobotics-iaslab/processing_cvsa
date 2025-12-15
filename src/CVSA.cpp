@@ -315,16 +315,15 @@ Eigen::MatrixXcd CVSA::compute_analytic_signal(const Eigen::MatrixXd& data){
     Eigen::MatrixXcd analytic = Eigen::MatrixXcd(nrows, nchannels);
 
     for (int j = 0; j < nchannels; ++j) {
-        // 1. Copy data into FFTW input
         for (int i = 0; i < nrows; ++i) {
             this->fft_in_[i][0] = data(i, j);
             this->fft_in_[i][1] = 0.0;
         }
 
-        // 2. Execute Forward FFT
+        // Execute Forward FFT
         fftw_execute_dft(this->plan_fwd_, this->fft_in_, this->fft_freq_);
 
-        // 3. Modify Spectrum (Zero negative, Double positive)
+        // Modify Spectrum (Zero negative, Double positive)
         for (int i = 1; i < nrows / 2; ++i) { // Double positive
             this->fft_freq_[i][0] *= 2.0;
             this->fft_freq_[i][1] *= 2.0;
@@ -333,12 +332,10 @@ Eigen::MatrixXcd CVSA::compute_analytic_signal(const Eigen::MatrixXd& data){
             this->fft_freq_[i][0] = 0.0;
             this->fft_freq_[i][1] = 0.0;
         }
-        // Note: DC (0) and Nyquist (nrows/2) components are left unchanged.
 
-        // 4. Execute Inverse FFT
+        // Execute Inverse FFT
         fftw_execute_dft(this->plan_bwd_, this->fft_freq_, this->fft_out_);
 
-        // 5. Copy to Eigen matrix and normalize by nrows
         for (int i = 0; i < nrows; ++i) {
             analytic(i, j) = std::complex<double>(
                 this->fft_out_[i][0] / nrows, // Real part
