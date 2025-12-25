@@ -7,7 +7,7 @@ find_package(catkin REQUIRED COMPONENTS
   rosneuro_msgs
   rosneuro_filters
   rosneuro_buffers
-  rosneuro_filters_car
+  rosneuro_filters_csd
   rosneuro_buffers_ringbuffer
   rosneuro_filters_butterworth
   std_msgs
@@ -44,7 +44,7 @@ catkin_package(
     rosneuro_filters_butterworth
     rosneuro_msgs
     message_runtime
-    rosneuro_filters_car
+    rosneuro_filters_csd
   DEPENDS
 )
 

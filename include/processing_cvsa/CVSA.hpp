@@ -9,7 +9,7 @@
 #include <processing_cvsa/utils.hpp>
 #include <processing_cvsa/eeg_power.h>
 #include <rosneuro_filters_butterworth/Butterworth.h>
-#include "rosneuro_filters_car/Car.h"
+#include "rosneuro_filters_csd/Csd.h"
 
 namespace processing{
 
@@ -50,7 +50,7 @@ protected:
     int seq_id_;
     bool is_configured_;
 
-    rosneuro::Car<float> car_filter_;
+    rosneuro::Csd<double> csd_filter_;
     std::vector<int> EOG_ch_;
 
     std::vector<rosneuro::Butterworth<double>> filters_low_;
