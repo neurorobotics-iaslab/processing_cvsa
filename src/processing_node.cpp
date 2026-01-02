@@ -1,5 +1,5 @@
 #include <ros/ros.h>
-#include "processing_cvsa/CVSA.hpp"
+#include "processing_bci/CVSA.hpp"
 
 int main(int argc, char** argv) {
 

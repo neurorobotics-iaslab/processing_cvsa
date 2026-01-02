@@ -1,13 +1,13 @@
-#ifndef PROCESSING_CVSA_HPP_
-#define PROCESSING_CVSA_HPP_
+#ifndef PROCESSING_BCI_HPP_
+#define PROCESSING_BCI_HPP_
 
 #include <ros/ros.h>
 #include <eigen3/Eigen/Dense>
 #include <fftw3.h>
 #include <rosneuro_msgs/NeuroFrame.h>
 #include <rosneuro_buffers_ringbuffer/RingBuffer.h>
-#include <processing_cvsa/utils.hpp>
-#include <processing_cvsa/eeg_power.h>
+#include <processing_bci/utils.hpp>
+#include <processing_bci/eeg_power.h>
 #include <rosneuro_filters_butterworth/Butterworth.h>
 #include "rosneuro_filters_csd/Csd.h"
 
@@ -56,7 +56,7 @@ protected:
     std::vector<rosneuro::Butterworth<double>> filters_low_;
     std::vector<rosneuro::Butterworth<double>> filters_high_;
 
-    processing_cvsa::eeg_power out_;
+    processing_bci::eeg_power out_;
     std::string modality_;
 
     // --- FFTW Members for Hilbert Transform ---

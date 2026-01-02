@@ -1,9 +1,9 @@
-#include "processing_cvsa/CVSA.hpp"
+#include "processing_bci/CVSA.hpp"
 
 namespace processing{
 
 CVSA::CVSA(void) : nh_("~") { 
-    this->pub_ = this->nh_.advertise<processing_cvsa::eeg_power>("/cvsa/eeg_power", 1);
+    this->pub_ = this->nh_.advertise<processing_bci::eeg_power>("/cvsa/eeg_power", 1);
     this->sub_ = this->nh_.subscribe("/neurodata", 1, &processing::CVSA::on_received_data, this);
 
     this->has_new_data_ = false;

@@ -1,7 +1,7 @@
 #include <ros/ros.h>
 #include <eigen3/Eigen/Dense>
-#include <processing_cvsa/eeg_power.h> 
-#include "processing_cvsa/utils.hpp" 
+#include <processing_bci/eeg_power.h> 
+#include "processing_bci/utils.hpp" 
 #include <string>
 #include <vector>
 
@@ -47,7 +47,7 @@ public:
     }
 
 
-    void callback(const processing_cvsa::eeg_power::ConstPtr& msg) {
+    void callback(const processing_bci::eeg_power::ConstPtr& msg) {
         uint32_t n_channels = msg->nchannels;
         if (n_channels == 0) return;
 

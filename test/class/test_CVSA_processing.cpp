@@ -8,8 +8,8 @@
 #include <eigen3/Eigen/Dense>
 #include <fstream>
 #include <rosneuro_buffers_ringbuffer/RingBuffer.hpp>
-#include "processing_cvsa/CVSA.hpp"
-#include <processing_cvsa/utils.hpp>
+#include "processing_bci/CVSA.hpp"
+#include <processing_bci/utils.hpp>
 
 int main(int argc, char** argv) {
     ros::init(argc, argv, "test_CVSA_processing");
