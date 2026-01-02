@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.0.2)
 #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
-project(processing_cvsa)
+project(processing_bci)
 
 find_package(catkin REQUIRED COMPONENTS
   roscpp
@@ -79,8 +79,8 @@ add_dependencies(${PROJECT_NAME}
 
 ################ EXEC
 # processing NODE
-add_executable(processing_cvsa_node src/processing_node.cpp)
-target_link_libraries(processing_cvsa_node 
+add_executable(processing_bci_node src/processing_node.cpp)
+target_link_libraries(processing_bci_node 
                         ${PROJECT_NAME}
                         
                         ) 
@@ -92,12 +92,12 @@ target_link_libraries(test_CVSA_processing
                       )  
 
 # test rosnode NODE
-add_executable(test_publisher_processing_cvsa test/node/publisher.cpp)
-target_link_libraries(test_publisher_processing_cvsa 
+add_executable(test_publisher_processing_bci test/node/publisher.cpp)
+target_link_libraries(test_publisher_processing_bci 
                       ${PROJECT_NAME}
                       )  
 
-add_executable(test_logger_processing_cvsa test/node/logger.cpp)
-target_link_libraries(test_logger_processing_cvsa 
+add_executable(test_logger_processing_bci test/node/logger.cpp)
+target_link_libraries(test_logger_processing_bci 
                       ${PROJECT_NAME}
                       )  
