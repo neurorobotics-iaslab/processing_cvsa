@@ -9,7 +9,7 @@
 #include <processing_bci/utils.hpp>
 #include <processing_bci/eeg_power.h>
 #include <rosneuro_filters_butterworth/Butterworth.h>
-#include "rosneuro_filters_csd/Csd.h"
+#include "rosneuro_filters_car/Car.h"
 
 namespace processing{
 
@@ -32,7 +32,7 @@ public:
     Eigen::MatrixXcd compute_analytic_signal(const Eigen::MatrixXd& data);
 
     // for use it as a class
-    CVSA(int nchannels, int frameSize, int bufferSize, int filterOrder, int sampleRate, std::string band_str); 
+    CVSA(int nchannels, int frameSize, int bufferSize, int filterOrder, int sampleRate, std::string band_str, std::vector<int> eog_ch); 
     Eigen::MatrixXd apply(Eigen::MatrixXf data_in);
 
 protected:
@@ -50,7 +50,7 @@ protected:
     int seq_id_;
     bool is_configured_;
 
-    rosneuro::Csd<double> csd_filter_;
+    rosneuro::Car<double> car_filter_;
     std::vector<int> EOG_ch_;
 
     std::vector<rosneuro::Butterworth<double>> filters_low_;

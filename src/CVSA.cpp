@@ -10,12 +10,13 @@ CVSA::CVSA(void) : nh_("~") {
     this->is_configured_ = false;
 }
 
-CVSA::CVSA(int nchannels, int frameSize, int bufferSize, int filterOrder, int sampleRate, std::string band_str){
+CVSA::CVSA(int nchannels, int frameSize, int bufferSize, int filterOrder, int sampleRate, std::string band_str, std::vector<int> eog_ch) {
     this->nchannels_ = nchannels;
     this->chunkSize_ = frameSize;
     this->modality_ = "";
     
-
+    // Filters parameters
+    this->car_filter_.configure(eog_ch);
     if(!str2vecOfvec<float>(band_str, this->filters_band_)){
         throw std::runtime_error("[CVSA Processing] Error in 'filters_band' parameter");
     }
@@ -136,8 +137,8 @@ bool CVSA::configure(void){
     this->plan_bwd_ = fftw_plan_dft_1d(fft_buffer_size_, fft_freq_, fft_out_, 
                                  FFTW_BACKWARD, FFTW_ESTIMATE);
 
-    this->csd_filter_ = rosneuro::Csd<double>();
-    this->csd_filter_.configure("CsdCfg");
+    this->car_filter_ = rosneuro::Car<double>();
+    this->car_filter_.configure("CarCfg");
 
     this->is_configured_ = true;
     return true;
@@ -215,12 +216,12 @@ void CVSA::set_message(Eigen::MatrixXd data){
 CVSA::ApplyResults CVSA::apply(void){
 
     Eigen::MatrixXd data1, data2;
-    Eigen::MatrixXd csd_data;
+    Eigen::MatrixXd car_data;
 
-    csd_data = this->csd_filter_.apply(this->data_in_.transpose().cast<double>()); // [samples x channels]
+    car_data = this->car_filter_.apply(this->data_in_.transpose().cast<double>()); // [samples x channels]
 
     for(int i = 0; i < this->nfilters_; i++){
-        data1 = this->filters_low_[i].apply(csd_data);
+        data1 = this->filters_low_[i].apply(car_data);
         data2 = this->filters_high_[i].apply(data1);
         this->buffers_[i]->add(data2.cast<float>()); // [samples x channels]
     }
@@ -262,9 +263,11 @@ CVSA::ApplyResults CVSA::apply(void){
 
 Eigen::MatrixXd CVSA::apply(Eigen::MatrixXf data_in){
     rosneuro::DynamicMatrix<float> tmp_matrix = data_in; 
-    Eigen::MatrixXd data1, data2;
+    Eigen::MatrixXd data1, data2, car_data;
+
+    car_data = this->car_filter_.apply(tmp_matrix.cast<double>()); // [samples x channels]
     for(int i = 0; i < this->nfilters_; i++){
-        data2 = this->filters_low_[i].apply(tmp_matrix.cast<double>());
+        data2 = this->filters_low_[i].apply(car_data.cast<double>());
         data1 = this->filters_high_[i].apply(data2);
         this->buffers_[i]->add(data1.cast<float>()); // [samples x channels]
     }

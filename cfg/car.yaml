@@ -1,0 +1,5 @@
+CarCfg:
+  name: car
+  type: CarFilterDouble
+  params:
+    EOG_ch: [1, 2, 19]  

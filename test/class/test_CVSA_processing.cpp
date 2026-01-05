@@ -30,7 +30,7 @@ int main(int argc, char** argv) {
     ROS_INFO("Configure processing");
     int filterOrder = 4;
     float sampleRate = 512.0;
-    processing::CVSA cvsa_processor(nchannels, frameSize, bufferSize, filterOrder, sampleRate, "8 14;");
+    processing::CVSA cvsa_processor(nchannels, frameSize, bufferSize, filterOrder, sampleRate, "8 14;", {1, 2, 19});
 
     // Allocate time variables for time analysis
 	ros::WallTime start_loop, stop_loop;
