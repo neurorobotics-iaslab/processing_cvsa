@@ -8,11 +8,11 @@
 #include <eigen3/Eigen/Dense>
 #include <fstream>
 #include <rosneuro_buffers_ringbuffer/RingBuffer.hpp>
-#include "processing_bci/CVSA.hpp"
+#include "processing_bci/Power.hpp"
 #include <processing_bci/utils.hpp>
 
 int main(int argc, char** argv) {
-    ros::init(argc, argv, "test_CVSA_processing");
+    ros::init(argc, argv, "test_power_processing");
     std::string datapath = "/home/paolo/cvsa/ic_cvsa_ws/src/processing_cvsa";
     const std::string fileinput  = datapath + "/test/rawdata.csv";
     const std::string fileoutput_pocessing  = datapath + "/test/class/processing.csv";
@@ -30,7 +30,7 @@ int main(int argc, char** argv) {
     ROS_INFO("Configure processing");
     int filterOrder = 4;
     float sampleRate = 512.0;
-    processing::CVSA cvsa_processor(nchannels, frameSize, bufferSize, filterOrder, sampleRate, "8 14;", {1, 2, 19});
+    processing::Power cvsa_processor(nchannels, frameSize, bufferSize, filterOrder, sampleRate, "8 14;", {1, 2, 19});
 
     // Allocate time variables for time analysis
 	ros::WallTime start_loop, stop_loop;

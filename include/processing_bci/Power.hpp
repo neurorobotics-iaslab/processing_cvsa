@@ -13,14 +13,14 @@
 
 namespace processing{
 
-class CVSA{
+class Power{
 public:
     enum class ApplyResults {BufferNotFull = 0, Error = 1, Success = 2};
 
 public:
     // for ros node
-    CVSA(void); 
-    ~CVSA();
+    Power(void); 
+    ~Power();
 
     bool configure(void);
     ApplyResults apply(void);
@@ -32,7 +32,7 @@ public:
     Eigen::MatrixXcd compute_analytic_signal(const Eigen::MatrixXd& data);
 
     // for use it as a class
-    CVSA(int nchannels, int frameSize, int bufferSize, int filterOrder, int sampleRate, std::string band_str, std::vector<int> eog_ch); 
+    Power(int nchannels, int frameSize, int bufferSize, int filterOrder, int sampleRate, std::string band_str, std::vector<int> eog_ch); 
     Eigen::MatrixXd apply(Eigen::MatrixXf data_in);
 
 protected:

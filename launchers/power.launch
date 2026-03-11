@@ -17,7 +17,7 @@
     
     <!-- PROCESSING -->
     <!-- arguments -->
-    <rosparam command="load" file="$(find processing_cvsa)/cfg/ringbuffer.yaml"/>
+    <rosparam command="load" file="$(find processing_bci)/cfg/ringbuffer.yaml"/>
     <arg name="nchannels" default='39'/>
     <arg name="chunkSize" default='32'/>
     <arg name="modality" default='online'/>
@@ -25,7 +25,7 @@
     <arg name='filters_band' default='8.0 14.0;'/>
 
     <!-- node -->
-    <node name="processing_cvsa_node" pkg="processing_cvsa" type="processing_cvsa_node" output="screen"> 
+    <node name="processing_power_node" pkg="processing_bci" type="processing_bci_node" output="screen"> 
         <param name="nchannels"   value="$(arg nchannels)"/>
         <param name="chunkSize"       value="$(arg chunkSize)"/>
         <param name="samplerate"  value='$(arg samplerate)'/>

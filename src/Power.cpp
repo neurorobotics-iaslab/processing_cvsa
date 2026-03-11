@@ -1,16 +1,16 @@
-#include "processing_bci/CVSA.hpp"
+#include "processing_bci/Power.hpp"
 
 namespace processing{
 
-CVSA::CVSA(void) : nh_("~") { 
-    this->pub_ = this->nh_.advertise<processing_bci::eeg_power>("/cvsa/eeg_power", 1);
-    this->sub_ = this->nh_.subscribe("/neurodata", 1, &processing::CVSA::on_received_data, this);
+Power::Power(void) : nh_("~") { 
+    this->pub_ = this->nh_.advertise<processing_bci::eeg_power>("/eeg_power", 1);
+    this->sub_ = this->nh_.subscribe("/neurodata", 1, &processing::Power::on_received_data, this);
 
     this->has_new_data_ = false;
     this->is_configured_ = false;
 }
 
-CVSA::CVSA(int nchannels, int frameSize, int bufferSize, int filterOrder, int sampleRate, std::string band_str, std::vector<int> eog_ch) {
+Power::Power(int nchannels, int frameSize, int bufferSize, int filterOrder, int sampleRate, std::string band_str, std::vector<int> eog_ch) {
     this->nchannels_ = nchannels;
     this->chunkSize_ = frameSize;
     this->modality_ = "";
@@ -18,7 +18,7 @@ CVSA::CVSA(int nchannels, int frameSize, int bufferSize, int filterOrder, int sa
     // Filters parameters
     this->car_filter_.configure(eog_ch);
     if(!str2vecOfvec<float>(band_str, this->filters_band_)){
-        throw std::runtime_error("[CVSA Processing] Error in 'filters_band' parameter");
+        throw std::runtime_error("[Power Processing] Error in 'filters_band' parameter");
     }
     for(int i = 0; i < this->filters_band_.size(); i++){
         this->filters_low_.push_back(rosneuro::Butterworth<double>(rosneuro::ButterType::LowPass,  filterOrder,  this->filters_band_[i][1], sampleRate));
@@ -52,7 +52,7 @@ CVSA::CVSA(int nchannels, int frameSize, int bufferSize, int filterOrder, int sa
     this->is_configured_ = true;
 }
 
-CVSA::~CVSA(){
+Power::~Power(){
     fftw_destroy_plan(this->plan_fwd_);
     fftw_destroy_plan(this->plan_bwd_);
     fftw_free(this->fft_in_);
@@ -65,22 +65,22 @@ CVSA::~CVSA(){
 }
 
 
-bool CVSA::configure(void){
+bool Power::configure(void){
 
     if(ros::param::get("~nchannels", this->nchannels_) == false){
-        ROS_ERROR("[CVSA Processing] Missing 'nchannels' parameter, which is a mandatory parameter");
+        ROS_ERROR("[Power Processing] Missing 'nchannels' parameter, which is a mandatory parameter");
         return false;
     }
     if(ros::param::get("~chunkSize", this->chunkSize_) == false){
-        ROS_ERROR("[CVSA Processing] Missing 'chunkSize' parameter, which is a mandatory parameter");
+        ROS_ERROR("[Power Processing] Missing 'chunkSize' parameter, which is a mandatory parameter");
         return false;
     }
     if(ros::param::get("~modality", this->modality_) == false){
-        ROS_ERROR("[CVSA Processing] Missing 'modality' parameter, which is a mandatory parameter");
+        ROS_ERROR("[Power Processing] Missing 'modality' parameter, which is a mandatory parameter");
         return false;
     }
     if (ros::param::get("~EOG_ch", this->EOG_ch_) == false) { // is important the order!
-        ROS_ERROR("[CVSA Processing] Cannot find param EOG_ch");
+        ROS_ERROR("[Power Processing] Cannot find param EOG_ch");
         return false;
     }
     for(int i = 0; i < this->EOG_ch_.size(); i++){
@@ -92,19 +92,19 @@ bool CVSA::configure(void){
     float sampleRate;
     std::string band_str;
     if(ros::param::get("~filter_order", filterOrder) == false){
-        ROS_ERROR("[CVSA Processing] Missing 'filter_order' parameter, which is a mandatory parameter");
+        ROS_ERROR("[Power Processing] Missing 'filter_order' parameter, which is a mandatory parameter");
         return false;
     }
     if(ros::param::get("~samplerate", sampleRate) == false){
-        ROS_ERROR("[CVSA Processing] Missing 'sample_rate' parameter, which is a mandatory parameter");
+        ROS_ERROR("[Power Processing] Missing 'sample_rate' parameter, which is a mandatory parameter");
         return false;
     }
     if(ros::param::get("~filters_band", band_str) == false){
-        ROS_ERROR("[CVSA Processing] Missing 'filters_band' parameter, which is a mandatory parameter");
+        ROS_ERROR("[Power Processing] Missing 'filters_band' parameter, which is a mandatory parameter");
         return false;
     }
     if(!str2vecOfvec<float>(band_str, this->filters_band_)){
-        ROS_ERROR("[CVSA Processing] Error in 'filters_band' parameter");
+        ROS_ERROR("[Power Processing] Error in 'filters_band' parameter");
         return false;
     }
     this->nfilters_ = this->filters_band_.size();
@@ -144,22 +144,22 @@ bool CVSA::configure(void){
     return true;
 }
 
-void CVSA::run(){
+void Power::run(){
     ros::Rate r(512);
     if(this->is_configured_ == false){
-        ROS_ERROR("[CSVA processing] CVSA not configured correctly");
+        ROS_ERROR("[CSVA processing] Power not configured correctly");
         return;
     }
 
     while(ros::ok()){
         if(this->has_new_data_){
-            CVSA::ApplyResults res = this->apply();
+            Power::ApplyResults res = this->apply();
             this->has_new_data_ = false;
             
-            if(res == CVSA::ApplyResults::Error){
-                ROS_ERROR("[CSVA processing] Error in CVSA processing");
+            if(res == Power::ApplyResults::Error){
+                ROS_ERROR("[CSVA processing] Error in Power processing");
                 break;
-            }else if(res == CVSA::ApplyResults::BufferNotFull){
+            }else if(res == Power::ApplyResults::BufferNotFull){
                 ROS_WARN("[CSVA processing] Buffer not full");
                 this->set_message(Eigen::MatrixXd::Ones(this->nchannels_, this->filters_low_.size())); // no error for the log transform
             }
@@ -171,7 +171,7 @@ void CVSA::run(){
     }
 }
 
-void CVSA::on_received_data(const rosneuro_msgs::NeuroFrame &msg){
+void Power::on_received_data(const rosneuro_msgs::NeuroFrame &msg){
     this->has_new_data_ = true;
 
     float* ptr_in;
@@ -193,7 +193,7 @@ void CVSA::on_received_data(const rosneuro_msgs::NeuroFrame &msg){
     this->seq_id_ = msg.header.seq;
 }
 
-void CVSA::set_message(Eigen::MatrixXd data){
+void Power::set_message(Eigen::MatrixXd data){
     // flattering data in column major order.
     Eigen::MatrixXf data_float = data.cast<float>(); // [channels x bands]
     this->out_.data.resize(data_float.size()); 
@@ -213,7 +213,7 @@ void CVSA::set_message(Eigen::MatrixXd data){
     this->out_.nchannels = this->nchannels_;
 }
 
-CVSA::ApplyResults CVSA::apply(void){
+Power::ApplyResults Power::apply(void){
 
     Eigen::MatrixXd data1, data2;
     Eigen::MatrixXd car_data;
@@ -226,7 +226,7 @@ CVSA::ApplyResults CVSA::apply(void){
         this->buffers_[i]->add(data2.cast<float>()); // [samples x channels]
     }
     if(!this->buffers_[0]->isfull()){
-        return CVSA::ApplyResults::BufferNotFull;
+        return Power::ApplyResults::BufferNotFull;
     }
 
     try{
@@ -240,7 +240,7 @@ CVSA::ApplyResults CVSA::apply(void){
             // Bandpass filter
             Eigen::Matrix<double, 1, Eigen::Dynamic> final_data;
             
-            // Hibert to compute the power
+            // Hibert to compute the Power
             Eigen::MatrixXcd analytic_signal = this->compute_analytic_signal(data_buffer.cast<double>());
             data2 = analytic_signal.array().abs2();;
 
@@ -253,15 +253,15 @@ CVSA::ApplyResults CVSA::apply(void){
         // send all the data to the classifier (nbands x nchannels)
         this->set_message(all_processed_signals);
 
-        return CVSA::ApplyResults::Success;
+        return Power::ApplyResults::Success;
 
     }catch(std::exception& e){
-        ROS_ERROR("[CSVA processing] Error in CVSA processing: %s", e.what());
-        return CVSA::ApplyResults::Error;
+        ROS_ERROR("[CSVA processing] Error in Power processing: %s", e.what());
+        return Power::ApplyResults::Error;
     }
 }
 
-Eigen::MatrixXd CVSA::apply(Eigen::MatrixXf data_in){
+Eigen::MatrixXd Power::apply(Eigen::MatrixXf data_in){
     rosneuro::DynamicMatrix<float> tmp_matrix = data_in; 
     Eigen::MatrixXd data1, data2, car_data;
 
@@ -286,7 +286,7 @@ Eigen::MatrixXd CVSA::apply(Eigen::MatrixXf data_in){
             Eigen::Matrix<double, 1, Eigen::Dynamic> final_data;
             Eigen::MatrixXf data_buffer = this->buffers_[i]->get(); // [samples x channels]
             
-            // Hibert to compute the power
+            // Hibert to compute the Power
             Eigen::MatrixXcd analytic_signal = this->compute_analytic_signal(data_buffer.cast<double>());
             data2 = analytic_signal.array().abs2();;
 
@@ -301,11 +301,11 @@ Eigen::MatrixXd CVSA::apply(Eigen::MatrixXf data_in){
         return all_processed_signals;
 
     }catch(std::exception& e){
-        throw std::runtime_error("[CSVA processing] Error in CVSA processing: " + std::string(e.what()));
+        throw std::runtime_error("[CSVA processing] Error in Power processing: " + std::string(e.what()));
     }
 }
 
-Eigen::MatrixXcd CVSA::compute_analytic_signal(const Eigen::MatrixXd& data){
+Eigen::MatrixXcd Power::compute_analytic_signal(const Eigen::MatrixXd& data){
     int nrows = data.rows();
     int nchannels = data.cols();
     

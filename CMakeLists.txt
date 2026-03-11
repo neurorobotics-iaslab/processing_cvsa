@@ -60,9 +60,9 @@ include_directories(
   ${EIGEN3_INCLUDE_DIRS}
 )
 
-# online CVSA library
+# online power library
 add_library(${PROJECT_NAME}
-                          src/CVSA.cpp
+                          src/Power.cpp
                           )
 
 target_link_libraries(${PROJECT_NAME}
@@ -79,15 +79,15 @@ add_dependencies(${PROJECT_NAME}
 
 ################ EXEC
 # processing NODE
-add_executable(processing_bci_node src/processing_node.cpp)
+add_executable(processing_bci_node src/processing_power_node.cpp)
 target_link_libraries(processing_bci_node 
                         ${PROJECT_NAME}
                         
                         ) 
 
 # test class NODE
-add_executable(test_CVSA_processing test/class/test_CVSA_processing.cpp)
-target_link_libraries(test_CVSA_processing 
+add_executable(test_power_processing test/class/test_power_processing.cpp)
+target_link_libraries(test_power_processing 
                       ${PROJECT_NAME}
                       )  
 

@@ -2,7 +2,7 @@
 
     <!-- PROCESSING -->
     <!-- arguments -->
-    <rosparam command="load" file="$(find processing_cvsa)/cfg/ringbuffer.yaml"/>
+    <rosparam command="load" file="$(find processing_bci)/cfg/ringbuffer.yaml"/>
     <arg name="nchannels" default='32'/>
     <arg name="chunkSize" default='32'/>
     <arg name="modality" default='online'/>
@@ -11,7 +11,7 @@
     <arg name='filters_band' default='8.0 14.0;'/>
 
     <!-- node -->
-    <node name="processing_cvsa_node" pkg="processing_cvsa" type="processing_cvsa_node" output="screen"> 
+    <node name="processing_power_node" pkg="processing_bci" type="processing_power_node" output="screen"> 
         <param name="nchannels"   value="$(arg nchannels)"/>
         <param name="chunkSize"       value="$(arg chunkSize)"/>
         <param name="samplerate"  value='$(arg samplerate)'/>
@@ -22,13 +22,13 @@
 
     <!-- TEST NODES -->
     <!-- logger node -->
-    <node pkg="processing_cvsa" type="test_logger_processing_cvsa" name="test_logger_processing_cvsa" output="screen">
-        <param name="output_filename" value="$(find processing_cvsa)/test/node/processing.csv"/>
+    <node pkg="processing_bci" type="test_logger_processing_bci" name="test_subscriber" output="screen">
+        <param name="output_filename" value="$(find processing_bci)/test/node/processing.csv"/>
     </node>
     
     <!-- publisher node -->
-    <node pkg="processing_cvsa" type="test_publisher_processing_cvsa" name="test_publisher_processing_cvsa" output="screen">
-        <param name="csv_file" value="$(find processing_cvsa)/test/rawdata.csv"/>
+    <node pkg="processing_bci" type="test_publisher_processing_bci" name="test_publisher" output="screen">
+        <param name="csv_file" value="$(find processing_bci)/test/rawdata.csv"/>
         <param name="chunk_size" value="$(arg chunkSize)"/>   
         <param name="sample_rate" value="$(arg samplerate)"/> 
     </node>

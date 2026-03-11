@@ -6,7 +6,7 @@
 #include "processing_bci/utils.hpp" 
 
 int main(int argc, char** argv) {
-    ros::init(argc, argv, "test_publisher_csv");
+    ros::init(argc, argv, "test_publisher");
     ros::NodeHandle nh;
     ros::NodeHandle private_nh("~"); 
 
