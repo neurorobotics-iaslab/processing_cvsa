@@ -20,11 +20,11 @@ int main(int argc, char** argv) {
         return 1;
     }
     if (!private_nh.getParam("chunk_size", n_samples)) {
-        ROS_ERROR("Parametro 'chunk_size' non impostato! (es. 32)");
+        ROS_ERROR("Parametro 'chunk_size' non impostato! (es. 32, 25)");
         return 1;
     }
     if (!private_nh.getParam("sample_rate", sample_rate)) {
-        ROS_ERROR("Parametro 'sample_rate' non impostato! (es. 512)");
+        ROS_ERROR("Parametro 'sample_rate' non impostato! (es. 512, 500)");
         return 1;
     }
 
@@ -56,7 +56,8 @@ int main(int argc, char** argv) {
         
         if (current_sample + n_samples > total_samples) {
             ROS_INFO("Fine del file CSV. Riavvio dall'inizio.");
-            current_sample = 0; 
+            //current_sample = 0; 
+            break; 
         }
 
         Eigen::MatrixXd chunk = full_data.block(current_sample, 0, n_samples, n_channels);
@@ -74,6 +75,8 @@ int main(int argc, char** argv) {
         pub.publish(msg);
         
         current_sample += n_samples;
+
+        std::cout << "Sended sample " << msg.header.seq << std::endl;
 
         ros::spinOnce();
         loop_rate.sleep();

@@ -10,48 +10,6 @@ Power::Power(void) : nh_("~") {
     this->is_configured_ = false;
 }
 
-Power::Power(int nchannels, int frameSize, int bufferSize, int filterOrder, int sampleRate, std::string band_str, std::vector<int> eog_ch) {
-    this->nchannels_ = nchannels;
-    this->chunkSize_ = frameSize;
-    this->modality_ = "";
-    
-    // Filters parameters
-    this->car_filter_.configure(eog_ch);
-    if(!str2vecOfvec<float>(band_str, this->filters_band_)){
-        throw std::runtime_error("[Power Processing] Error in 'filters_band' parameter");
-    }
-    for(int i = 0; i < this->filters_band_.size(); i++){
-        this->filters_low_.push_back(rosneuro::Butterworth<double>(rosneuro::ButterType::LowPass,  filterOrder,  this->filters_band_[i][1], sampleRate));
-        this->filters_high_.push_back(rosneuro::Butterworth<double>(rosneuro::ButterType::HighPass,  filterOrder,  this->filters_band_[i][0], sampleRate));
-    }
-    this->nfilters_ = this->filters_band_.size();
-    for (int i = 0; i < this->nfilters_; i++){
-        
-        this->buffers_.push_back(new rosneuro::RingBuffer<float>());
-        if(!this->buffers_.back()->configure("RingBufferCfg")){
-            std::ostringstream error_msg;
-            error_msg << "[" << this->buffers_.back()->name() << " " 
-                  << std::fixed << std::setprecision(2) // Opzionale: per avere 2 decimali
-                  << this->filters_band_[i][0] << "-" << this->filters_band_[i][1] << " Hz] "
-                  << "Buffer not configured correctly";
-            throw std::runtime_error(error_msg.str());
-        }
-    }
-
-    // fftw configuration for hilbert
-    this->fft_buffer_size_ = bufferSize;
-    this->fft_in_   = (fftw_complex*) fftw_malloc(sizeof(fftw_complex) * fft_buffer_size_);
-    this->fft_freq_ = (fftw_complex*) fftw_malloc(sizeof(fftw_complex) * fft_buffer_size_);
-    this->fft_out_  = (fftw_complex*) fftw_malloc(sizeof(fftw_complex) * fft_buffer_size_);
-    
-    this->plan_fwd_ = fftw_plan_dft_1d(fft_buffer_size_, fft_in_, fft_freq_, 
-                                 FFTW_FORWARD, FFTW_ESTIMATE);
-    this->plan_bwd_ = fftw_plan_dft_1d(fft_buffer_size_, fft_freq_, fft_out_, 
-                                 FFTW_BACKWARD, FFTW_ESTIMATE);
-
-    this->is_configured_ = true;
-}
-
 Power::~Power(){
     fftw_destroy_plan(this->plan_fwd_);
     fftw_destroy_plan(this->plan_bwd_);
@@ -78,13 +36,6 @@ bool Power::configure(void){
     if(ros::param::get("~modality", this->modality_) == false){
         ROS_ERROR("[Power Processing] Missing 'modality' parameter, which is a mandatory parameter");
         return false;
-    }
-    if (ros::param::get("~EOG_ch", this->EOG_ch_) == false) { // is important the order!
-        ROS_ERROR("[Power Processing] Cannot find param EOG_ch");
-        return false;
-    }
-    for(int i = 0; i < this->EOG_ch_.size(); i++){
-        this->EOG_ch_[i] = this->EOG_ch_[i] - 1; // to bring it in 0 based
     }
 
     // Filters parameters
@@ -147,7 +98,7 @@ bool Power::configure(void){
 void Power::run(){
     ros::Rate r(512);
     if(this->is_configured_ == false){
-        ROS_ERROR("[CSVA processing] Power not configured correctly");
+        ROS_ERROR("[power processing] Power not configured correctly");
         return;
     }
 
@@ -157,10 +108,10 @@ void Power::run(){
             this->has_new_data_ = false;
             
             if(res == Power::ApplyResults::Error){
-                ROS_ERROR("[CSVA processing] Error in Power processing");
+                ROS_ERROR("[power processing] Error in Power processing");
                 break;
             }else if(res == Power::ApplyResults::BufferNotFull){
-                ROS_WARN("[CSVA processing] Buffer not full");
+                ROS_WARN("[power processing] Buffer not full");
                 this->set_message(Eigen::MatrixXd::Ones(this->nchannels_, this->filters_low_.size())); // no error for the log transform
             }
 
@@ -256,52 +207,8 @@ Power::ApplyResults Power::apply(void){
         return Power::ApplyResults::Success;
 
     }catch(std::exception& e){
-        ROS_ERROR("[CSVA processing] Error in Power processing: %s", e.what());
+        ROS_ERROR("[power processing] Error in Power processing: %s", e.what());
         return Power::ApplyResults::Error;
-    }
-}
-
-Eigen::MatrixXd Power::apply(Eigen::MatrixXf data_in){
-    rosneuro::DynamicMatrix<float> tmp_matrix = data_in; 
-    Eigen::MatrixXd data1, data2, car_data;
-
-    car_data = this->car_filter_.apply(tmp_matrix.cast<double>()); // [samples x channels]
-    for(int i = 0; i < this->nfilters_; i++){
-        data2 = this->filters_low_[i].apply(car_data.cast<double>());
-        data1 = this->filters_high_[i].apply(data2);
-        this->buffers_[i]->add(data1.cast<float>()); // [samples x channels]
-    }
-
-    if(!this->buffers_[0]->isfull()){
-        return Eigen::MatrixXd();
-    }
-
-    try{
-        Eigen::MatrixXd all_processed_signals(this->nchannels_, this->filters_low_.size()); // [channels x bands]
-        std::vector<std::vector<float>> bands;
-
-        // iterate over all filters
-        for(int i = 0; i < this->filters_low_.size(); i++){
-            // Bandpass filter
-            Eigen::Matrix<double, 1, Eigen::Dynamic> final_data;
-            Eigen::MatrixXf data_buffer = this->buffers_[i]->get(); // [samples x channels]
-            
-            // Hibert to compute the Power
-            Eigen::MatrixXcd analytic_signal = this->compute_analytic_signal(data_buffer.cast<double>());
-            data2 = analytic_signal.array().abs2();;
-
-            // Average window 
-            final_data = data2.colwise().mean();
-
-            all_processed_signals.col(i) = final_data.transpose();
-            bands.push_back({this->filters_band_[i][0], this->filters_band_[i][1]});
-
-        }
-
-        return all_processed_signals;
-
-    }catch(std::exception& e){
-        throw std::runtime_error("[CSVA processing] Error in Power processing: " + std::string(e.what()));
     }
 }
 
@@ -311,8 +218,8 @@ Eigen::MatrixXcd Power::compute_analytic_signal(const Eigen::MatrixXd& data){
     
     // Check if buffer size matches FFT plan size
     if (nrows != this->fft_buffer_size_) {
-        ROS_ERROR("[CSVA processing] Data size (%d) does not match FFTW plan size (%d).", nrows, this->fft_buffer_size_);
-        throw std::runtime_error("[CSVA processing] Data size does not match FFTW plan size.");
+        ROS_ERROR("[power processing] Data size (%d) does not match FFTW plan size (%d).", nrows, this->fft_buffer_size_);
+        throw std::runtime_error("[power processing] Data size does not match FFTW plan size.");
     }
     
     Eigen::MatrixXcd analytic = Eigen::MatrixXcd(nrows, nchannels);

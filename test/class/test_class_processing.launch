@@ -1,7 +1,0 @@
-<launch>	
-    <!-- PROCESSING TEST -->
-    <!-- node -->
-    <rosparam command="load" file="$(find processing_bci)/cfg/ringbuffer.yaml"/>
-	<node name="test_power_processing" pkg="processing_bci" type="test_power_processing" output="screen"> 
-	</node>
-</launch>

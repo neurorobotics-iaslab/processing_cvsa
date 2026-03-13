@@ -21,7 +21,7 @@ public:
             ROS_INFO("Save band index: %d", band_index_to_save_);
         }
 
-        std::string topic = "/cvsa/eeg_power";
+        std::string topic = "/eeg_power";
         sub_ = nh.subscribe(topic, 1, &LoggerNode::callback, this);
     }
 

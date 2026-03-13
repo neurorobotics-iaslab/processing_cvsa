@@ -3,11 +3,12 @@
     <!-- PROCESSING -->
     <!-- arguments -->
     <rosparam command="load" file="$(find processing_bci)/cfg/ringbuffer.yaml"/>
+    <rosparam command="load" file="$(find processing_bci)/cfg/car.yaml"/>
     <arg name="nchannels" default='32'/>
-    <arg name="chunkSize" default='32'/>
+    <arg name="chunkSize" default='25'/>
     <arg name="modality" default='online'/>
     <arg name="filter_order" default='4'/>
-    <arg name="samplerate" default='512'/>
+    <arg name="samplerate" default='500'/>
     <arg name='filters_band' default='8.0 14.0;'/>
 
     <!-- node -->
@@ -23,7 +24,7 @@
     <!-- TEST NODES -->
     <!-- logger node -->
     <node pkg="processing_bci" type="test_logger_processing_bci" name="test_subscriber" output="screen">
-        <param name="output_filename" value="$(find processing_bci)/test/node/processing.csv"/>
+        <param name="output_filename" value="$(find processing_bci)/test/processing.csv"/>
     </node>
     
     <!-- publisher node -->

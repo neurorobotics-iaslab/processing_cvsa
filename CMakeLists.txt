@@ -79,25 +79,19 @@ add_dependencies(${PROJECT_NAME}
 
 ################ EXEC
 # processing NODE
-add_executable(processing_bci_node src/processing_power_node.cpp)
-target_link_libraries(processing_bci_node 
+add_executable(processing_power_node src/processing_power_node.cpp)
+target_link_libraries(processing_power_node 
                         ${PROJECT_NAME}
                         
                         ) 
 
-# test class NODE
-add_executable(test_power_processing test/class/test_power_processing.cpp)
-target_link_libraries(test_power_processing 
-                      ${PROJECT_NAME}
-                      )  
-
 # test rosnode NODE
-add_executable(test_publisher_processing_bci test/node/publisher.cpp)
+add_executable(test_publisher_processing_bci test/publisher.cpp)
 target_link_libraries(test_publisher_processing_bci 
                       ${PROJECT_NAME}
                       )  
 
-add_executable(test_logger_processing_bci test/node/logger.cpp)
+add_executable(test_logger_processing_bci test/logger.cpp)
 target_link_libraries(test_logger_processing_bci 
                       ${PROJECT_NAME}
                       )  

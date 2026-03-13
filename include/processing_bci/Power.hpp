@@ -31,10 +31,6 @@ public:
 
     Eigen::MatrixXcd compute_analytic_signal(const Eigen::MatrixXd& data);
 
-    // for use it as a class
-    Power(int nchannels, int frameSize, int bufferSize, int filterOrder, int sampleRate, std::string band_str, std::vector<int> eog_ch); 
-    Eigen::MatrixXd apply(Eigen::MatrixXf data_in);
-
 protected:
     ros::NodeHandle nh_;
     ros::Publisher pub_;
