@@ -36,6 +36,8 @@ protected:
     ros::Publisher pub_;
     ros::Subscriber sub_;
 
+    std::string name_;
+
     std::vector<rosneuro::Buffer<float>*> buffers_;
     bool has_new_data_;
     rosneuro::DynamicMatrix<float> data_in_;

@@ -3,7 +3,7 @@
 namespace processing{
 
 Power::Power(void) : nh_("~") { 
-    this->pub_ = this->nh_.advertise<processing_bci::eeg_power>("/eeg_power", 1);
+    this->name_ = "Power Processing";
     this->sub_ = this->nh_.subscribe("/neurodata", 1, &processing::Power::on_received_data, this);
 
     this->has_new_data_ = false;
@@ -26,36 +26,40 @@ Power::~Power(){
 bool Power::configure(void){
 
     if(ros::param::get("~nchannels", this->nchannels_) == false){
-        ROS_ERROR("[Power Processing] Missing 'nchannels' parameter, which is a mandatory parameter");
+        ROS_ERROR("[%s] Missing 'nchannels' parameter, which is a mandatory parameter", this->name_.c_str());
         return false;
     }
     if(ros::param::get("~chunkSize", this->chunkSize_) == false){
-        ROS_ERROR("[Power Processing] Missing 'chunkSize' parameter, which is a mandatory parameter");
+        ROS_ERROR("[%s] Missing 'chunkSize' parameter, which is a mandatory parameter", this->name_.c_str());
         return false;
     }
     if(ros::param::get("~modality", this->modality_) == false){
-        ROS_ERROR("[Power Processing] Missing 'modality' parameter, which is a mandatory parameter");
+        ROS_ERROR("[%s] Missing 'modality' parameter, which is a mandatory parameter", this->name_.c_str());
         return false;
     }
+    std::string topic_to_pub;
+    this->nh_.param<std::string>("topic_to_pub", topic_to_pub, "/eeg_power");
+    ROS_INFO("[%s] topic_to_pub set to: %s", this->name_.c_str(), topic_to_pub.c_str());
+    this->pub_ = this->nh_.advertise<processing_bci::eeg_power>(topic_to_pub, 1);
 
     // Filters parameters
     int filterOrder;
     float sampleRate;
     std::string band_str;
     if(ros::param::get("~filter_order", filterOrder) == false){
-        ROS_ERROR("[Power Processing] Missing 'filter_order' parameter, which is a mandatory parameter");
+        ROS_ERROR("[%s] Missing 'filter_order' parameter, which is a mandatory parameter", this->name_.c_str());
         return false;
     }
     if(ros::param::get("~samplerate", sampleRate) == false){
-        ROS_ERROR("[Power Processing] Missing 'sample_rate' parameter, which is a mandatory parameter");
+        ROS_ERROR("[%s] Missing 'sample_rate' parameter, which is a mandatory parameter", this->name_.c_str());
         return false;
     }
     if(ros::param::get("~filters_band", band_str) == false){
-        ROS_ERROR("[Power Processing] Missing 'filters_band' parameter, which is a mandatory parameter");
+        ROS_ERROR("[%s] Missing 'filters_band' parameter, which is a mandatory parameter", this->name_.c_str());
         return false;
     }
     if(!str2vecOfvec<float>(band_str, this->filters_band_)){
-        ROS_ERROR("[Power Processing] Error in 'filters_band' parameter");
+        ROS_ERROR("[%s] Error in 'filters_band' parameter", this->name_.c_str());
         return false;
     }
     this->nfilters_ = this->filters_band_.size();
@@ -98,7 +102,7 @@ bool Power::configure(void){
 void Power::run(){
     ros::Rate r(512);
     if(this->is_configured_ == false){
-        ROS_ERROR("[power processing] Power not configured correctly");
+        ROS_ERROR("[%s] Power not configured correctly", this->name_.c_str());
         return;
     }
 
@@ -108,10 +112,10 @@ void Power::run(){
             this->has_new_data_ = false;
             
             if(res == Power::ApplyResults::Error){
-                ROS_ERROR("[power processing] Error in Power processing");
+                ROS_ERROR("[%s] Error in Power processing", this->name_.c_str());
                 break;
             }else if(res == Power::ApplyResults::BufferNotFull){
-                ROS_WARN("[power processing] Buffer not full");
+                ROS_WARN("[%s] Buffer not full", this->name_.c_str());
                 this->set_message(Eigen::MatrixXd::Ones(this->nchannels_, this->filters_low_.size())); // no error for the log transform
             }
 
@@ -207,7 +211,7 @@ Power::ApplyResults Power::apply(void){
         return Power::ApplyResults::Success;
 
     }catch(std::exception& e){
-        ROS_ERROR("[power processing] Error in Power processing: %s", e.what());
+        ROS_ERROR("[%s] Error in Power processing: %s", this->name_.c_str(), e.what());
         return Power::ApplyResults::Error;
     }
 }
@@ -218,8 +222,8 @@ Eigen::MatrixXcd Power::compute_analytic_signal(const Eigen::MatrixXd& data){
     
     // Check if buffer size matches FFT plan size
     if (nrows != this->fft_buffer_size_) {
-        ROS_ERROR("[power processing] Data size (%d) does not match FFTW plan size (%d).", nrows, this->fft_buffer_size_);
-        throw std::runtime_error("[power processing] Data size does not match FFTW plan size.");
+        ROS_ERROR("[%s] Data size (%d) does not match FFTW plan size (%d).", this->name_.c_str(), nrows, this->fft_buffer_size_);
+        throw std::runtime_error("[Power Processing] Data size does not match FFTW plan size.");
     }
     
     Eigen::MatrixXcd analytic = Eigen::MatrixXcd(nrows, nchannels);
