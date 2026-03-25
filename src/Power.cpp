@@ -29,12 +29,16 @@ bool Power::configure(void){
         ROS_ERROR("[%s] Missing 'nchannels' parameter, which is a mandatory parameter", this->name_.c_str());
         return false;
     }
+    if(ros::param::get("~signal_type", this->signal_type_) == false){
+        ROS_ERROR("[%s] Missing 'signal_type_' parameter, which is a mandatory parameter", this->name_.c_str());
+        return false;
+    }
     if(ros::param::get("~chunkSize", this->chunkSize_) == false){
         ROS_ERROR("[%s] Missing 'chunkSize' parameter, which is a mandatory parameter", this->name_.c_str());
         return false;
     }
-    if(ros::param::get("~modality", this->modality_) == false){
-        ROS_ERROR("[%s] Missing 'modality' parameter, which is a mandatory parameter", this->name_.c_str());
+    if(ros::param::get("~run_mode", this->run_mode_) == false){
+        ROS_ERROR("[%s] Missing 'run_mode' parameter, which is a mandatory parameter", this->name_.c_str());
         return false;
     }
     std::string topic_to_pub;
@@ -134,9 +138,9 @@ void Power::on_received_data(const rosneuro_msgs::NeuroFrame &msg){
     ptr_in = const_cast<float*>(msg.eeg.data.data());
     ptr_eog = const_cast<float*>(msg.exg.data.data());
     
-    if(this->modality_ == "online"){ // reminder: if EOG the last channel is mapped in the exg
+    if(this->run_mode_ == "online"  || (this->run_mode_ == "offline" && this->signal_type_ == "eeg")){ // reminder: if EOG the last channel is mapped in the exg
         this->data_in_ = Eigen::Map<rosneuro::DynamicMatrix<float>>(ptr_in, this->nchannels_, this->chunkSize_); // channels x sample
-    }else if(this->modality_ == "offline"){
+    }else if(this->run_mode_ == "offline" && this->signal_type_ == "eeg_eog"){
         Eigen::MatrixXf eeg_data = Eigen::Map<rosneuro::DynamicMatrix<float>>(ptr_in, this->nchannels_ - 1, this->chunkSize_); // for the eog
         Eigen::MatrixXf eog_data = Eigen::Map<Eigen::Matrix<float, 1, -1>>(ptr_eog, 1, this->chunkSize_);
         this->data_in_ = Eigen::MatrixXf(this->nchannels_, this->chunkSize_); // channels x sample

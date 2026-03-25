@@ -55,7 +55,7 @@ protected:
     std::vector<rosneuro::Butterworth<double>> filters_high_;
 
     processing_bci::eeg_power out_;
-    std::string modality_;
+    std::string run_mode_, signal_type_;
 
     // --- FFTW Members for Hilbert Transform ---
     int fft_buffer_size_; // The size of your buffer (e.g., 512)
