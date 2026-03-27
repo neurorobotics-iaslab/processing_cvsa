@@ -10,11 +10,10 @@ int main(int argc, char** argv) {
     processing::Power power;
     
     if(power.configure() == false) {
-        std::cerr<<"[processing_power_node] SETUP ERROR"<<std::endl;
-        return -1;
+        ROS_ERROR("[Power Processing] Configuration failed");
+        ros::shutdown();
+        return 0;
     }
-
-    ROS_INFO("[INFO] Configuration done");
     
     power.run();
     
