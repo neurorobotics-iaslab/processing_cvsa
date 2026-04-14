@@ -32,5 +32,6 @@
         <param name="filter_order" value="$(arg filter_order)"/>
         <param name="modality" value="$(arg modality)"/>
         <param name="filters_band"           value="$(arg filters_band)"/>
+        <param name="do_hann"  value="true"/>
     </node>
 </launch>

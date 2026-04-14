@@ -57,6 +57,10 @@ protected:
     processing_bci::eeg_power out_;
     std::string run_mode_, signal_type_;
 
+    // Hanning window
+    bool do_hann_;
+    Eigen::VectorXf hann_window_;
+
     // --- FFTW Members for Hilbert Transform ---
     int fft_buffer_size_; // The size of your buffer (e.g., 512)
     fftw_complex *fft_in_;

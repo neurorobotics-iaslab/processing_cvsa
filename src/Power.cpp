@@ -99,6 +99,16 @@ bool Power::configure(void){
     this->car_filter_ = rosneuro::Car<double>();
     this->car_filter_.configure("CarCfg");
 
+    // hanning window
+    this->nh_.param<bool>("do_hann", this->do_hann_, false);
+    if(this->do_hann_){
+        ROS_INFO("[%s] Hann window enable", this->name_.c_str());
+        this->hann_window_.resize(this->fft_buffer_size_);
+        for(int i = 0; i < this->fft_buffer_size_; ++i) {
+            this->hann_window_(i) = 0.5f * (1.0f - std::cos(2.0f * M_PI * i / (this->fft_buffer_size_ - 1)));
+        }
+    }
+
     this->is_configured_ = true;
     return true;
 }
@@ -120,7 +130,7 @@ void Power::run(){
                 break;
             }else if(res == Power::ApplyResults::BufferNotFull){
                 ROS_WARN("[%s] Buffer not full", this->name_.c_str());
-                this->set_message(Eigen::MatrixXd::Ones(this->nchannels_, this->filters_low_.size())); // no error for the log transform
+                this->set_message(Eigen::MatrixXd::Ones(this->nchannels_, this->filters_low_.size())); 
             }
 
             this->pub_.publish(this->out_);
@@ -196,6 +206,11 @@ Power::ApplyResults Power::apply(void){
         for(int i = 0; i < this->nfilters_; i++){
 
             Eigen::MatrixXf data_buffer = this->buffers_[i]->get();
+            
+            if(this->do_hann_) {
+                data_buffer = data_buffer.array().colwise() * this->hann_window_.array();
+            }
+
             // Bandpass filter
             Eigen::Matrix<double, 1, Eigen::Dynamic> final_data;
             

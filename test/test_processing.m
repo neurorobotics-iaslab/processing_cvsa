@@ -12,6 +12,7 @@ sampleRate = 500;
 chunkSize = 25;
 nsamples = size(data, 1);
 nchannels = size(data, 2);
+do_hann = true;
 
 %% apply the processing
 disp(['      [INFO] start processing like ros for band ' num2str(band(1)) '-' num2str(band(2))]);
@@ -27,7 +28,7 @@ h.EVENT.POS = [];
 h.EVENT.DUR = [];
 h.SampleRate = 500;
 
-[signal_processed, ~] = processing_onlineROS_CAR_hilbert(data, h, nchannels, bufferSize, filterOrder, band, chunkSize, [1,2,19]);
+[signal_processed, ~] = processing_onlineROS_CAR_hilbert(data, h, nchannels, bufferSize, filterOrder, band, chunkSize, [1,2,19], do_hann);
 
 
 %% Load file of rosneuro
