@@ -57,6 +57,9 @@ protected:
     processing_bci::eeg_power out_;
     std::string run_mode_, signal_type_;
 
+    // car filter
+    bool do_car_;
+
     // Hanning window
     bool do_hann_;
     Eigen::VectorXf hann_window_;

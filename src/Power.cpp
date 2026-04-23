@@ -96,9 +96,12 @@ bool Power::configure(void){
     this->plan_bwd_ = fftw_plan_dft_1d(fft_buffer_size_, fft_freq_, fft_out_, 
                                  FFTW_BACKWARD, FFTW_ESTIMATE);
 
-    this->car_filter_ = rosneuro::Car<double>();
-    this->car_filter_.configure("CarCfg");
-
+    this->nh_.param<bool>("do_car", this->do_car_, false);
+    if(this->do_car_){
+        ROS_INFO("[%s] CAR filter enable", this->name_.c_str());
+        this->car_filter_ = rosneuro::Car<double>();
+        this->car_filter_.configure("CarCfg");
+    }
     // hanning window
     this->nh_.param<bool>("do_hann", this->do_hann_, false);
     if(this->do_hann_){
@@ -187,7 +190,11 @@ Power::ApplyResults Power::apply(void){
     Eigen::MatrixXd data1, data2;
     Eigen::MatrixXd car_data;
 
-    car_data = this->car_filter_.apply(this->data_in_.transpose().cast<double>()); // [samples x channels]
+    if(this->do_car_){
+        car_data = this->car_filter_.apply(this->data_in_.transpose().cast<double>()); // [samples x channels]
+    }else{
+        car_data = this->data_in_.transpose().cast<double>();
+    }
 
     for(int i = 0; i < this->nfilters_; i++){
         data1 = this->filters_low_[i].apply(car_data);
