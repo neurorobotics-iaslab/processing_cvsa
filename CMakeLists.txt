@@ -21,7 +21,7 @@ find_path(RTF_INCLUDE_DIRS rtfilter.h)
 
 add_message_files(
   FILES
-  eeg_power.msg
+  eeg_fbcsp.msg
 )
 
 generate_messages(
@@ -62,7 +62,7 @@ include_directories(
 
 # online power library
 add_library(${PROJECT_NAME}
-                          src/Power.cpp
+                          src/Fbcsp.cpp
                           )
 
 target_link_libraries(${PROJECT_NAME}
@@ -79,10 +79,9 @@ add_dependencies(${PROJECT_NAME}
 
 ################ EXEC
 # processing NODE
-add_executable(processing_power_node src/processing_power_node.cpp)
-target_link_libraries(processing_power_node 
+add_executable(processing_fbcsp_node src/processing_fbcsp_node.cpp)
+target_link_libraries(processing_fbcsp_node 
                         ${PROJECT_NAME}
-                        
                         ) 
 
 # test rosnode NODE
@@ -91,7 +90,7 @@ target_link_libraries(test_publisher_processing_bci
                       ${PROJECT_NAME}
                       )  
 
-add_executable(test_logger_processing_bci test/logger.cpp)
-target_link_libraries(test_logger_processing_bci 
+add_executable(test_logger_fbcsp_processing_bci test/logger_fbcsp.cpp)
+target_link_libraries(test_logger_fbcsp_processing_bci 
                       ${PROJECT_NAME}
                       )  

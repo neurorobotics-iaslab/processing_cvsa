@@ -6,26 +6,33 @@
     <rosparam command="load" file="$(find processing_bci)/cfg/car.yaml"/>
     <arg name="nchannels" default='32'/>
     <arg name="chunkSize" default='25'/>
-    <arg name="modality" default='online'/>
+    <arg name="run_mode" default='online'/>
+    <arg name="signal_type" default='eeg'/>
     <arg name="filter_order" default='4'/>
     <arg name="samplerate" default='500'/>
-    <arg name='filters_band' default='8.0 14.0;'/>
+    <arg name='filters_band' default='8.0 10.0; 10.0 12.0; 18.0 24.0;'/>
+    <arg name="do_ica" default="false"/>
+    <arg name="do_car" default="false"/>
 
     <!-- node -->
-    <node name="processing_power_node" pkg="processing_bci" type="processing_power_node" output="screen"> 
+    <node name="processing_fbcsp_node" pkg="processing_bci" type="processing_fbcsp_node" output="screen"> 
+        <rosparam command="load" file="$(find processing_bci)/test/ica.yaml"/>
+        <rosparam command="load" file="$(find processing_bci)/test/csp.yaml"/>
         <param name="nchannels"   value="$(arg nchannels)"/>
         <param name="chunkSize"       value="$(arg chunkSize)"/>
         <param name="samplerate"  value='$(arg samplerate)'/>
         <param name="filter_order" value="$(arg filter_order)"/>
-        <param name="modality" value="$(arg modality)"/>
+        <param name="run_mode" value="$(arg run_mode)"/>
+        <param name="signal_type" value="$(arg signal_type)"/>
         <param name="filters_band"           value="$(arg filters_band)"/>
-        <param name="do_hann" value="true"/>
+        <param name="do_ica"        value="$(arg do_ica)"/>
+        <param name="do_car"        value="$(arg do_car)"/>
     </node>
 
     <!-- TEST NODES -->
     <!-- logger node -->
-    <node pkg="processing_bci" type="test_logger_processing_bci" name="test_subscriber" output="screen">
-        <param name="output_filename" value="$(find processing_bci)/test/processing.csv"/>
+    <node pkg="processing_bci" type="test_logger_fbcsp_processing_bci" name="test_subscriber" output="screen">
+        <param name="output_filename" value="$(find processing_bci)/test/fbcsp_processing.csv"/>
     </node>
     
     <!-- publisher node -->
@@ -34,7 +41,5 @@
         <param name="chunk_size" value="$(arg chunkSize)"/>   
         <param name="sample_rate" value="$(arg samplerate)"/> 
     </node>
-
-    
 
 </launch>
