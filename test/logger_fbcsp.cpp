@@ -13,13 +13,6 @@ public:
             ROS_WARN("Parameter 'output_filename' doesn't found. Default: %s", output_filename_.c_str());
         }
 
-        if (!nh.getParam("band_index", band_index_to_save_)) {
-            band_index_to_save_ = 0; 
-            ROS_WARN("Parameter 'band_index' dont found. Default: %d", band_index_to_save_);
-        } else {
-            ROS_INFO("Save band index: %d", band_index_to_save_);
-        }
-
         std::string topic;
         nh.param<std::string>("topic", topic, "/eeg_fbcsp");
         sub_ = nh.subscribe(topic, 1, &LoggerNode::callback, this);
@@ -47,28 +40,24 @@ public:
     }
 
     void callback(const processing_bci::eeg_fbcsp::ConstPtr& msg) {
-        uint32_t n_components = msg->ncomponents;
+        uint32_t n_components = msg->ncomponents_for_band;
         if (n_components == 0) return;
 
         uint32_t n_bands = msg->nbands;
-        if (msg->data.size() != n_components * n_bands) {
+        uint32_t total_features = n_components * n_bands;
+
+        if (msg->data.size() != total_features) {
             ROS_ERROR("Data error: size %lu does not match components * bands!",
                       msg->data.size());
             return;
         }
 
-        if (band_index_to_save_ >= n_bands) {
-            ROS_ERROR_ONCE("Error: 'band_index' (%d) out of range. The matrix has only %u bands (indices 0-%u).",
-                           band_index_to_save_, n_bands, n_bands - 1);
-            return;
-        }
-
-        Eigen::Map<const Eigen::MatrixXf> full_matrix(
-            msg->data.data(), n_components, n_bands
+        Eigen::Map<const Eigen::RowVectorXf> components_row(
+            msg->data.data(), 
+            total_features
         );
 
-        Eigen::VectorXf band_column = full_matrix.col(band_index_to_save_);
-        Eigen::RowVectorXf components_row = band_column.transpose();
+        // Aggiungiamo la riga mappata al nostro std::vector
         collected_rows_.push_back(components_row);
 
         std::cout << "Received sample " << msg->seq << std::endl;
@@ -77,7 +66,6 @@ public:
 private:
     ros::Subscriber sub_;
     std::string output_filename_;
-    int band_index_to_save_;
     
     std::vector<Eigen::RowVectorXf> collected_rows_;
 };

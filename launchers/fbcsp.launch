@@ -1,13 +1,27 @@
-<launch>
+<launch>    
+    <!-- ACQUISITION -->
+    <!-- arguments -->
+    <arg name="plugin" default='rosneuro::EGDDevice'/>
+    <arg name="devarg" default='/home/paolo/prova32ch.gdf'/>
+    <!--arg name="devarg" default='/home/paolo/prova32ch.gdf'/-->
+    <arg name="framerate" default='16'/>
+    <arg name="samplerate" default='512'/>
 
+    <!-- node -->
+    <node name="acquisition" pkg="rosneuro_acquisition" type="acquisition" output="screen">
+        <param name="~plugin"       value="$(arg plugin)"/>
+        <param name="~devarg"       value="$(arg devarg)"/>
+        <param name="~samplerate" value="$(arg samplerate)"/>
+        <param name="~framerate"  value="$(arg framerate)"/>
+      </node> 
+    
     <!-- PROCESSING -->
     <!-- arguments -->
     <arg name="nchannels" default='32'/>
-    <arg name="chunkSize" default='25'/>
+    <arg name="chunkSize" default="$(eval arg('samplerate') / arg('framerate'))"/>
     <arg name="run_mode" default='online'/>
     <arg name="signal_type" default='eeg'/>
     <arg name="filter_order" default='4'/>
-    <arg name="samplerate" default='500'/>
     <arg name='filters_band' default='8.0 10.0; 10.0 12.0; 12.0 14.0; 8.0 14; 14.0 20.0;'/>
     <arg name="do_ica" default="false"/>
     <arg name="do_car" default="true"/>
@@ -29,18 +43,4 @@
         <param name="do_ica"        value="$(arg do_ica)"/>
         <param name="do_car"        value="$(arg do_car)"/>
     </node>
-
-    <!-- TEST NODES -->
-    <!-- logger node -->
-    <node pkg="processing_bci" type="test_logger_fbcsp_processing_bci" name="test_subscriber" output="screen">
-        <param name="output_filename" value="$(find processing_bci)/test/fbcsp_processing.csv"/>
-    </node>
-    
-    <!-- publisher node -->
-    <node pkg="processing_bci" type="test_publisher_processing_bci" name="test_publisher" output="screen">
-        <param name="csv_file" value="$(find processing_bci)/test/rawdata.csv"/>
-        <param name="chunk_size" value="$(arg chunkSize)"/>   
-        <param name="sample_rate" value="$(arg samplerate)"/> 
-    </node>
-
 </launch>

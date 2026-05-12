@@ -2,4 +2,4 @@ CarCfg:
   name: car
   type: CarFilterDouble
   params:
-    EOG_ch: [1, 2, 19]  
+    EOG_ch: $(arg EOG_ch)  # FP1, FP2

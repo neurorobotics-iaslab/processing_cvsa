@@ -1,11 +1,11 @@
 clc; clear all; close all;
 
 %% process through matlab
-datapath = './src/processing_bci/test/';
-filein = [datapath, 'rawdata.csv'];
+datapath = './src/processing_bci/';
+filein = [datapath, 'test/rawdata.csv'];
 data = readmatrix(filein);
 filterOrder = 4;
-bands = [8, 10; 10 12; 18 24];
+bands = [8, 10; 10 12; 12 14; 8 14; 14 20];
 bufferSize = 500;
 sampleRate = 500;
 chunkSize = 25;
@@ -14,19 +14,25 @@ nchannels = size(data, 2);
 
 %% Load YAML files
 do_ica = false;
-do_car = false;
+do_car = true;
 
 if do_ica
     ica_struct = yaml.ReadYaml([datapath, 'ica.yaml']);
     ica_matrix = cell2mat(ica_struct.ica_matrix);
 end
 
+if do_car
+    EOG_ch = [1, 32];
+    testo = sprintf('do_car true; eog channels: %s', mat2str(EOG_ch));
+    disp(testo);
+end
+
 % csp_matrices is a cell array of cell arrays of cell arrays
-csp_struct = yaml.ReadYaml([datapath, 'csp.yaml']);
-ncsp_bands = length(csp_struct.csp_matrices);
+csp_struct = yaml.ReadYaml([datapath, 'cfg/csp/csp_test.yaml']);
+ncsp_bands = length(csp_struct.CspCfg.params.csp_matrices);
 csp_matrices = cell(ncsp_bands, 1);
 for b = 1:ncsp_bands
-    csp_matrices{b} = cell2mat(csp_struct.csp_matrices{b});
+    csp_matrices{b} = cell2mat(csp_struct.CspCfg.params.csp_matrices{b});
 end
 ncomponents = size(csp_matrices{1}, 1);
 
@@ -43,7 +49,9 @@ end
 
 % 2. CAR (Common Average Reference)
 if do_car
-    car_data = ica_data - mean(ica_data, 2);
+    idxs = 1:32;
+    idxs(EOG_ch) = [];
+    car_data = ica_data - mean(ica_data(:,idxs), 2);
 else
     car_data = ica_data;
 end
@@ -116,9 +124,9 @@ end
 %% Load file of rosneuro
 start_chunk = bufferSize/chunkSize; 
 align = bufferSize/chunkSize + 40; % align to remove zero elements before buffer is full
-ros_skip_msgs = 1;
+ros_skip_msgs = 0;
 
-file = [datapath 'fbcsp_processing.csv'];
+file = [datapath 'test/fbcsp_processing.csv'];
 disp(['Loading file: ' file])
 ros_data = readmatrix(file);
 
@@ -151,3 +159,5 @@ ylabel('absolute error');
 title('Difference')
 
 sgtitle(['Evaluation' c_title])
+
+disp(['max value diff between data_matlab and data_ros: ' num2str(max(matlab_data - ros_data, [],'all'))])

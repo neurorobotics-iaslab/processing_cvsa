@@ -145,9 +145,9 @@ bool Fbcsp::configure(void) {
     }
     this->nfilters_ = this->filters_band_.size();
 
-    // CSP Matrices
-    if (!this->load_matrices("csp_matrices", this->csp_matrices_)) {
-        ROS_ERROR("[%s] Failed to load 'csp_matrices' from parameter server", this->name_.c_str());
+    // CSP Matrices configuration
+    if (!this->load_matrices("/CspCfg/params/csp_matrices", this->csp_matrices_)) {
+        ROS_ERROR("[%s] Failed to load 'cspCfg/params/csp_matrices' from parameter server", this->name_.c_str());
         return false;
     }
     if (this->csp_matrices_.size() != this->nfilters_) {
@@ -157,6 +157,30 @@ bool Fbcsp::configure(void) {
     }
     this->ncomponents_ = this->csp_matrices_[0].rows();
     ROS_INFO("[%s] Loaded %ld CSP matrices, %d components per band", this->name_.c_str(), this->csp_matrices_.size(), this->ncomponents_);
+
+    // csp and filter bands check
+    Eigen::MatrixXd yaml_bands_mat;
+    if (this->load_matrix("/CspCfg/params/bands", yaml_bands_mat)) {
+        if (yaml_bands_mat.rows() != this->nfilters_ || yaml_bands_mat.cols() < 2) {
+            ROS_ERROR("[%s] Mismatch! Launch file has %d bands, but YAML model has %ld bands.", 
+                      this->name_.c_str(), this->nfilters_, yaml_bands_mat.rows());
+            return false;
+        }
+        for (int i = 0; i < this->nfilters_; ++i) {
+            if (std::abs(this->filters_band_[i][0] - yaml_bands_mat(i, 0)) > 1e-4 || 
+                std::abs(this->filters_band_[i][1] - yaml_bands_mat(i, 1)) > 1e-4) {
+                
+                ROS_ERROR("[%s] Band mismatch at index %d! Launch file: [%.1f, %.1f] Hz, YAML: [%.1f, %.1f] Hz",
+                          this->name_.c_str(), i, this->filters_band_[i][0], this->filters_band_[i][1], 
+                          yaml_bands_mat(i, 0), yaml_bands_mat(i, 1));
+                return false;
+            }
+        }
+        ROS_INFO("[%s] Success: Frequency bands in Launch file perfectly match the CSP YAML configuration.", this->name_.c_str());
+    } else {
+        ROS_WARN("[%s] 'cspCfg/params/bands' parameter not found in YAML. Skipping safety check.", this->name_.c_str());
+        return false;
+    }
 
     // Filter configuration
     for(int i = 0; i < this->nfilters_; i++){
@@ -241,7 +265,7 @@ void Fbcsp::set_message(const Eigen::MatrixXd& data) {
     this->out_.nbands = this->filters_band_.size();
     this->out_.header.stamp = ros::Time::now();
     this->out_.seq = this->seq_id_;
-    this->out_.ncomponents = this->ncomponents_;
+    this->out_.ncomponents_for_band = this->ncomponents_;
 }
 
 Fbcsp::ApplyResults Fbcsp::apply(void) {
