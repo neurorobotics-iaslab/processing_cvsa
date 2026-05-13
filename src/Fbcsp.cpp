@@ -9,6 +9,8 @@ Fbcsp::Fbcsp(void) : nh_("~") {
 
     this->has_new_data_ = false;
     this->is_configured_ = false;
+    this->is_car_configured_ = false;
+    this->csp_ch_idx_resolved_ = false;
 }
 
 Fbcsp::~Fbcsp() {
@@ -118,9 +120,18 @@ bool Fbcsp::configure(void) {
     // CAR
     this->nh_.param<bool>("do_car", this->do_car_, true);
     if(this->do_car_){
-        ROS_INFO("[%s] CAR filter enable", this->name_.c_str());
-        this->car_filter_ = rosneuro::Car<double>();
-        this->car_filter_.configure("CarCfg");
+        ROS_INFO("[%s] CAR filter enabled – channel names resolved on first NeuroFrame", this->name_.c_str());
+        XmlRpc::XmlRpcValue eog_names_xml;
+        if(!ros::param::get("/CarCfg/params/EOG_ch_names", eog_names_xml) ||
+           eog_names_xml.getType() != XmlRpc::XmlRpcValue::TypeArray){
+            ROS_ERROR("[%s] Missing or invalid '/CarCfg/params/EOG_ch_names'", this->name_.c_str());
+            return false;
+        }
+        for(int i = 0; i < eog_names_xml.size(); i++){
+            this->EOG_ch_names_.push_back(static_cast<std::string>(eog_names_xml[i]));
+        }
+        ROS_INFO("[%s] EOG channel names to exclude from CAR: %zu channel(s)", this->name_.c_str(), this->EOG_ch_names_.size());
+        // actual Car configuration deferred to first NeuroFrame (configure_car())
     }
 
     // Filters parameters
@@ -145,22 +156,34 @@ bool Fbcsp::configure(void) {
     }
     this->nfilters_ = this->filters_band_.size();
 
-    // CSP Matrices configuration
-    if (!this->load_matrices("/CspCfg/params/csp_matrices", this->csp_matrices_)) {
-        ROS_ERROR("[%s] Failed to load 'cspCfg/params/csp_matrices' from parameter server", this->name_.c_str());
+    // CSP Matrices configuration (private namespace: loaded inside <node> in the launch file)
+    if (!this->load_matrices("CspCfg/params/csp_matrices", this->csp_matrices_)) {
+        ROS_ERROR("[%s] Failed to load 'CspCfg/params/csp_matrices' from parameter server", this->name_.c_str());
         return false;
     }
     if (this->csp_matrices_.size() != this->nfilters_) {
-        ROS_ERROR("[%s] Number of CSP matrices (%ld) does not match number of frequency bands (%d)", 
+        ROS_ERROR("[%s] Number of CSP matrices (%ld) does not match number of frequency bands (%d)",
                   this->name_.c_str(), this->csp_matrices_.size(), this->nfilters_);
         return false;
     }
     this->ncomponents_ = this->csp_matrices_[0].rows();
     ROS_INFO("[%s] Loaded %ld CSP matrices, %d components per band", this->name_.c_str(), this->csp_matrices_.size(), this->ncomponents_);
 
+    // CSP selected channels (names resolved from NeuroFrame labels on first message)
+    XmlRpc::XmlRpcValue csp_ch_xml;
+    if(this->nh_.getParam("CspCfg/params/selected_channels", csp_ch_xml) &&
+       csp_ch_xml.getType() == XmlRpc::XmlRpcValue::TypeArray){
+        for(int i = 0; i < csp_ch_xml.size(); i++)
+            this->csp_ch_names_.push_back(static_cast<std::string>(csp_ch_xml[i]));
+        ROS_INFO("[%s] CSP channel selection: %zu channel(s) – resolved on first NeuroFrame",
+                 this->name_.c_str(), this->csp_ch_names_.size());
+    } else {
+        ROS_INFO("[%s] No CSP channel selection found – all NeuroFrame channels will be used", this->name_.c_str());
+    }
+
     // csp and filter bands check
     Eigen::MatrixXd yaml_bands_mat;
-    if (this->load_matrix("/CspCfg/params/bands", yaml_bands_mat)) {
+    if (this->load_matrix("CspCfg/params/bands", yaml_bands_mat)) {
         if (yaml_bands_mat.rows() != this->nfilters_ || yaml_bands_mat.cols() < 2) {
             ROS_ERROR("[%s] Mismatch! Launch file has %d bands, but YAML model has %ld bands.", 
                       this->name_.c_str(), this->nfilters_, yaml_bands_mat.rows());
@@ -232,6 +255,70 @@ void Fbcsp::run() {
 }
 
 void Fbcsp::on_received_data(const rosneuro_msgs::NeuroFrame &msg) {
+
+    if(this->do_car_ && !this->is_car_configured_){
+        const auto& labels = msg.eeg.info.labels;
+        if(labels.empty()){
+            ROS_ERROR_THROTTLE(5.0, "[%s] NeuroFrame labels empty – cannot configure CAR", this->name_.c_str());
+            return;
+        }
+        this->EOG_ch_.clear();
+        for(const auto& name : this->EOG_ch_names_){
+            bool found = false;
+            for(int i = 0; i < static_cast<int>(labels.size()); i++){
+                std::string a = name, b = labels[i];
+                std::transform(a.begin(), a.end(), a.begin(), ::tolower);
+                std::transform(b.begin(), b.end(), b.begin(), ::tolower);
+                if(a == b){ this->EOG_ch_.push_back(i); found = true; break; }
+            }
+            if(!found){
+                ROS_ERROR("[%s] CAR: channel '%s' not found in NeuroFrame labels", this->name_.c_str(), name.c_str());
+                return;
+            }
+        }
+        this->car_filter_ = rosneuro::Car<double>();
+        this->car_filter_.configure(this->EOG_ch_);
+        this->is_car_configured_ = true;
+        ROS_INFO("[%s] CAR configured with %zu excluded channel(s)", this->name_.c_str(), this->EOG_ch_.size());
+    }
+
+    // Resolve CSP channel indices on first message
+    if(!this->csp_ch_idx_resolved_){
+        const auto& labels = msg.eeg.info.labels;
+        if(this->csp_ch_names_.empty()){
+            // no selection: use all channels
+            for(int i = 0; i < static_cast<int>(msg.eeg.info.nchannels); i++)
+                this->csp_ch_idx_.push_back(i);
+            this->csp_ch_idx_resolved_ = true;
+        } else {
+            if(labels.empty()){
+                ROS_ERROR_THROTTLE(5.0, "[%s] NeuroFrame labels empty – cannot resolve CSP channels", this->name_.c_str());
+                return;
+            }
+            for(const auto& ch_name : this->csp_ch_names_){
+                bool found = false;
+                for(int i = 0; i < static_cast<int>(labels.size()); i++){
+                    std::string a = ch_name, b = labels[i];
+                    std::transform(a.begin(), a.end(), a.begin(), ::tolower);
+                    std::transform(b.begin(), b.end(), b.begin(), ::tolower);
+                    if(a == b){ this->csp_ch_idx_.push_back(i); found = true; break; }
+                }
+                if(!found){
+                    ROS_ERROR("[%s] CSP channel '%s' not found in NeuroFrame labels", this->name_.c_str(), ch_name.c_str());
+                    return;
+                }
+            }
+            // Verify CSP matrix column count matches selected channels
+            if(this->csp_matrices_[0].cols() != static_cast<int>(this->csp_ch_idx_.size())){
+                ROS_ERROR("[%s] CSP matrix has %ld columns but %zu channels were selected – mismatch",
+                          this->name_.c_str(), this->csp_matrices_[0].cols(), this->csp_ch_idx_.size());
+                return;
+            }
+            this->csp_ch_idx_resolved_ = true;
+            ROS_INFO("[%s] CSP channels resolved: %zu channel(s)", this->name_.c_str(), this->csp_ch_idx_.size());
+        }
+    }
+
     this->has_new_data_ = true;
 
     float* ptr_in = const_cast<float*>(msg.eeg.data.data());
@@ -299,14 +386,18 @@ Fbcsp::ApplyResults Fbcsp::apply(void) {
         for(int i = 0; i < this->nfilters_; i++) {
             Eigen::MatrixXf data_buffer = this->buffers_[i]->get(); // [samples x channels]
             
-            // data_buffer is samples x channels
-            // csp_matrices_[i] is components x channels
-            // result is samples x components
-            Eigen::MatrixXf csp_data = data_buffer * this->csp_matrices_[i].transpose().cast<float>();
+            // Extract selected channels: [bufferSize x n_selected]
+            int n_sel = this->csp_ch_idx_.size();
+            Eigen::MatrixXf buf_selected(data_buffer.rows(), n_sel);
+            for(int j = 0; j < n_sel; j++)
+                buf_selected.col(j) = data_buffer.col(this->csp_ch_idx_[j]);
 
-            // Calculate variance across samples
-            Eigen::MatrixXf centered = csp_data.rowwise() - csp_data.colwise().mean();
-            Eigen::VectorXf variance = centered.colwise().squaredNorm() / (centered.rows() - 1);
+            // CSP spatial filter: [bufferSize x n_components]
+            // csp_matrices_[i] is [n_components x n_selected]
+            Eigen::MatrixXf csp_data = buf_selected * this->csp_matrices_[i].transpose().cast<float>();
+
+            // Mean power: mean(x^2) — matches MNE CSP with log=True
+            Eigen::VectorXf variance = csp_data.colwise().squaredNorm() / csp_data.rows();
 
             all_processed_signals.col(i) = variance.cast<double>();
         }

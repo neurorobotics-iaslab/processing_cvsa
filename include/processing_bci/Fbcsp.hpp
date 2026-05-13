@@ -50,6 +50,13 @@ protected:
 
     rosneuro::Car<double> car_filter_;
     bool do_car_;
+    bool is_car_configured_;
+    std::vector<std::string> EOG_ch_names_; // channel names from car.yaml
+    std::vector<int> EOG_ch_;               // resolved 0-based indices
+
+    std::vector<std::string> csp_ch_names_; // channel names from CspCfg (subset for CSP)
+    std::vector<int> csp_ch_idx_;           // resolved 0-based indices into NeuroFrame channels
+    bool csp_ch_idx_resolved_;
 
     std::vector<rosneuro::Butterworth<double>> filters_low_;
     std::vector<rosneuro::Butterworth<double>> filters_high_;

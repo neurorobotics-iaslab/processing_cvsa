@@ -1,82 +1,93 @@
 #include <ros/ros.h>
 #include <rosneuro_msgs/NeuroFrame.h>
-#include <eigen3/Eigen/Dense> 
+#include <eigen3/Eigen/Dense>
 #include <vector>
 #include <string>
-#include "processing_bci/utils.hpp" 
+#include "processing_bci/utils.hpp"
+
+static const std::vector<std::string> CH_LABELS_32 = {
+    "Fp1","Fp2","F3","Fz","F4","FC1","FC2","C3","Cz","C4",
+    "CP1","CP2","P3","Pz","P4","POz","O1","O2","CPz","F1",
+    "F2","FC5","FCz","FC6","C1","C2","CP5","CP6","P5","P1","P2","P6"
+};
 
 int main(int argc, char** argv) {
     ros::init(argc, argv, "test_publisher");
     ros::NodeHandle nh;
-    ros::NodeHandle private_nh("~"); 
+    ros::NodeHandle private_nh("~");
 
-    std::string topic = "/neurodata";
     std::string csv_filename;
-    int n_samples;     
+    int n_samples;
     double sample_rate;
 
     if (!private_nh.getParam("csv_file", csv_filename)) {
-        ROS_ERROR("Parametro 'csv_file' non impostato! Specificare il percorso del CSV.");
+        ROS_ERROR("Parameter 'csv_file' not set.");
         return 1;
     }
     if (!private_nh.getParam("chunk_size", n_samples)) {
-        ROS_ERROR("Parametro 'chunk_size' non impostato! (es. 32, 25)");
+        ROS_ERROR("Parameter 'chunk_size' not set.");
         return 1;
     }
     if (!private_nh.getParam("sample_rate", sample_rate)) {
-        ROS_ERROR("Parametro 'sample_rate' non impostato! (es. 512, 500)");
+        ROS_ERROR("Parameter 'sample_rate' not set.");
         return 1;
     }
 
-    ROS_INFO("Loading dati from: %s", csv_filename.c_str());
+    ROS_INFO("Loading data from: %s", csv_filename.c_str());
     Eigen::MatrixXd full_data;
     try {
-        full_data = readCSV<double>(csv_filename); 
+        full_data = readCSV<double>(csv_filename);
     } catch (const std::exception& e) {
-        ROS_ERROR("Error durign the CSV reading: %s", e.what());
+        ROS_ERROR("Error reading CSV: %s", e.what());
         return 1;
     }
-    
-    int n_channels = full_data.cols();
-    int total_samples = full_data.rows();
-    ROS_INFO("Loaded data: %d samples x %d channels.", total_samples, n_channels);
 
-    ros::Publisher pub = nh.advertise<rosneuro_msgs::NeuroFrame>(topic, 1);
+    int n_channels    = full_data.cols();
+    int total_samples = full_data.rows();
+    ROS_INFO("Loaded: %d samples x %d channels.", total_samples, n_channels);
+
+    // Build label list (truncate or extend to match actual channel count)
+    std::vector<std::string> ch_labels(CH_LABELS_32.begin(),
+                                       CH_LABELS_32.begin() + std::min(n_channels, (int)CH_LABELS_32.size()));
+    for (int i = (int)ch_labels.size(); i < n_channels; i++)
+        ch_labels.push_back("Ch" + std::to_string(i + 1));
+
+    ros::Publisher pub = nh.advertise<rosneuro_msgs::NeuroFrame>("/neurodata", 1);
     ros::Rate loop_rate(sample_rate / n_samples);
 
-    ROS_INFO("Waiting for a  subscriber on topic '%s'...", topic.c_str());
+    ROS_INFO("Waiting for subscriber on /neurodata ...");
     while (ros::ok() && pub.getNumSubscribers() == 0) {
-        ros::Duration(0.5).sleep(); 
+        ros::Duration(0.5).sleep();
         ROS_INFO_THROTTLE(5.0, "Still waiting...");
     }
-    ROS_INFO("Subscriber connected. Start pubblication.");
+    ROS_INFO("Subscriber connected. Starting publication.");
 
     int current_sample = 0;
+    uint32_t seq = 0;
     while (ros::ok()) {
-        
         if (current_sample + n_samples > total_samples) {
-            ROS_INFO("Fine del file CSV. Riavvio dall'inizio.");
-            //current_sample = 0; 
-            break; 
+            ROS_INFO("End of CSV file.");
+            break;
         }
 
         Eigen::MatrixXd chunk = full_data.block(current_sample, 0, n_samples, n_channels);
 
         rosneuro_msgs::NeuroFrame msg;
-        msg.header.stamp = ros::Time::now();
-        msg.header.seq = current_sample / n_samples;
-        msg.sr = sample_rate;
+        msg.header.stamp    = ros::Time::now();
+        msg.header.seq      = seq;
+        msg.sr              = sample_rate;
         msg.eeg.info.nchannels = n_channels;
-        msg.eeg.info.nsamples = n_samples;
-        
-        Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> chunk_float;
-        chunk_float = chunk.cast<float>();
-        msg.eeg.data.assign(chunk_float.data(), chunk_float.data() + chunk_float.size());
-        pub.publish(msg);
-        
-        current_sample += n_samples;
+        msg.eeg.info.nsamples  = n_samples;
+        msg.eeg.info.labels    = ch_labels;
 
-        std::cout << "Sended sample " << msg.header.seq << std::endl;
+        Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> chunk_float = chunk.cast<float>();
+        msg.eeg.data.assign(chunk_float.data(), chunk_float.data() + chunk_float.size());
+
+        pub.publish(msg);
+        ROS_INFO_THROTTLE(1.0, "Published seq %u", seq);
+
+        current_sample += n_samples;
+        seq++;
 
         ros::spinOnce();
         loop_rate.sleep();

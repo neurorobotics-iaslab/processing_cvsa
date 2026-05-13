@@ -1,72 +1,218 @@
-## CVSA Processing Node
+# processing_bci
 
-This package is responsible for processing raw EEG data, calculating signal power across different frequency bands, and publishing the results.
-
-The code is designed to run as a ROS node but can also be integrated as a C++ class, though it maintains dependencies on `rosneuro` libraries.
+Real-time EEG feature extraction node for the BCI-VR pipeline. Implements Filter Bank Common Spatial Patterns (FBCSP): per-band bandpass filtering → ring buffer → CSP spatial filter → mean power features, published for downstream sLDA classification.
 
 ---
 
-### 1. Input
+## 1. Input / Output
 
-* **Topic:** `/neurodata`
-* **Data:** Raw EEG signal. The data ingestion is fully parametric: it receives dynamic chunks of samples depending on your `chunkSize` and `samplerate` configurations. Specifically, the `samplerate` must match the hardware acquisition parameter, while the `chunkSize` depends entirely on the desired ROS loop framerate (e.g., `samplerate / framerate = chunkSize`).
+| Direction | Topic | Message type |
+|-----------|-------|-------------|
+| Input  | `/neurodata` | `rosneuro_msgs/NeuroFrame` |
+| Output | `/{paradigm}/eeg_fbcsp` | `processing_bci/eeg_fbcsp` |
 
----
+The output topic is set via the `topic_to_pub` node parameter (default `/eeg_fbcsp`).
 
-### 2. Processing Workflow
+### Output message fields
 
-1.  **Format Input Data:** The node evaluates `run_mode` (`online` or `offline`) and `signal_type` (`eeg` or `eeg_eog`) to reconstruct the incoming data matrix dynamically, gracefully handling different data structures (e.g., LSL playback exg placements).
-2.  **CAR Spatial Filter:** The loaded data vector is first passed through a **Common Average Reference (CAR)** filter, which mitigates noise evenly distributed across channels (configured via a dedicated YAML file).
-3.  **Ring Buffer:** The node utilizes a `rosneuro/ringbuffer`. The capacity of this buffer is also strictly parametric and configured externally. Typically scaled to contain 1 second of data, it naturally adapts to the configured sampling rate (e.g., buffering 512 samples for a 512 Hz rate, or 250 samples for a 250 Hz rate), managing high-frequency chunk streams gracefully.
-4.  **Frequency Filtering:** 
-    * **Band-pass Filtering:** The accumulated data is filtered through one or multiple independent IIR Butterworth band-pass filters in parallel.
-    * **Configuration:** Frequency bands (e.g., `8.0-14.0`, `18.0-24.0`) are provided via the `filters_band` parameter.
-    * **Order:** Filter order defaults to 4.
-5.  **Hann Windowing (Optional):** If the `do_hann` parameter is `true`, a Hann window is applied to the buffered chunk to gracefully reduce spectral leakage at the boundaries before transformation.
-6.  **Power Calculation:**
-    * A Fast Fourier Transform (FFTW) calculates the **analytic signal** by eliminating negative frequencies and doubling the positive spectrum.
-    * The **instantaneous power** is derived (squared absolute value).
-    * Finally, the **mean power** is computed across the buffer window to extract the discrete feature.
+| Field | Description |
+|-------|-------------|
+| `ncomponents_for_band` | CSP components per band |
+| `nbands` | Number of frequency bands |
+| `seq` | Frame sequence number from input `header.seq` |
+| `bands` | Flat list of band edges (e.g. `[8.0, 10.0, 10.0, 12.0, ...]`) |
+| `data` | Mean-power matrix `[n_components × n_bands]`, column-major (comp1_band1, comp2_band1, …) |
 
 ---
 
-### 3. Output
+## 2. Processing Pipeline
 
-* **Topic:** Default is `/eeg_power`, but it can be dynamically overridden via the `topic_to_pub` ros param.
-* **Message Type:** This package defines a **custom message type** for this topic.
+```
+NeuroFrame.eeg  [nchannels × chunkSize]
+    │
+    ▼ ICA (optional)
+    │   data = ica_matrix × raw_eeg
+    │
+    ▼ CAR  (mean of non-EOG channels subtracted from all channels)
+    │   EOG_ch_names resolved from eeg.info.labels on first frame
+    │
+    ▼ per frequency band:
+    │   LP(f_high) → HP(f_low)  [IIR Butterworth, causal, order 4]
+    │   → ring buffer  [1 s shift-register, NaN-initialised]
+    │
+    ▼ when buffer full:
+    │   extract selected_channels subset
+    │   CSP:  buf_selected × W.T  →  [bufferSize × n_components]
+    │   mean power:  mean(x²) per component  =  MNE CSP log=True convention
+    │
+    → publish /{paradigm}/eeg_fbcsp
+```
 
-The custom message contains the following fields:
-* `n_channels`: The number of EEG channels.
-* `n_bands`: The number of frequency bands processed.
-* `eeg_code`: A unique identifier for the EEG signal, matching the code from the corresponding frame on `/neurodata`.
-* `bands`: A list of strings (e.g., `['delta', 'theta']`) specifying the bands that were processed.
-* `data`: The calculated mean power, structured as a flattened matrix: `[channels x bands]`.
+**CAR exclusion:** `EOG_ch_names` in `car.yaml` are matched case-insensitively against `eeg.info.labels` received in the first NeuroFrame.
 
----
+**CSP channel selection:** if `selected_channels` is present in the CSP yaml, only those channels (resolved from `eeg.info.labels`) are passed to the CSP matrix. The CSP matrix columns must match the number of selected channels.
 
-### 4. Configuration
-
-To properly instantiate the node, the launch file must supply several node-level variables and load necessary YAML mappings:
-
-**Node Parameters:**
-* `nchannels`: Total integer number of main channels acquired.
-* `samplerate`: The hardware sampling frequency used during data acquisition (e.g., 250 or 512 Hz).
-* `chunkSize`: Sample chunk length. This depends directly on the ROS framerate you wish to maintain (e.g., `chunkSize = samplerate / framerate`).
-* `signal_type`: The source structural type (e.g., `eeg` or `eeg_eog`).
-* `run_mode`: Define if the stream is `online` (live acquisition) or `offline` (simulated playback).
-* `filter_order` / `filters_band`: Core filtering characteristics.
-* `do_hann`: `bool`. Activates the Hann windowing on the ring buffer prior to power transformation.
-
-**Required YAML files:**
-* **`cfg/ringbuffer.yaml`**: Necessary to configure the size and scope of the `rosneuro/ringbuffer`.
-* **`cfg/car.yaml`**: Configures the spatial `CarCfg` namespace (defining which channels to evaluate or exclude during spatial referencing).
+**Band safety check:** at startup, `filters_band` is cross-checked against the `bands` field in the CSP yaml. A mismatch causes a fatal error.
 
 ---
 
-### 5. Testing
+## 3. Configuration
 
-The `test` directory contains two primary validation tests, both of which use `rawdata.csv` as a common input file for comparison against a MATLAB benchmark implementation.
+### `car.yaml`
 
-1.  **Class Test:** This test validates the C++ processing class in isolation. It confirms that the C++ implementation of the filtering and power calculation logic produces results identical to the MATLAB implementation.
+```yaml
+CarCfg:
+  name: car
+  type: CarFilterDouble
+  params:
+    EOG_ch_names: ['Fp1', 'Fp2']   # resolved from eeg.info.labels on first frame
+```
 
-2.  **Node Test:** This test validates the full ROS node. By using publishers and subscribers, it confirms not only that the processing logic is correct (comparing the final output to MATLAB) but also that the ROS communication (data subscription and publication) functions as expected.
+### `ringbuffer.yaml`
+
+```yaml
+RingBufferCfg:
+  name: ringbuffer
+  type: RingBufferFloat
+  params:
+    size: $(arg samplerate)   # 1-second buffer (substituted at launch time)
+```
+
+### CSP yaml (`cfg/csp/{paradigm}/csp_*.yaml`)
+
+Generated by `slda_bci/create_slda/create_slda.ipynb`. Key fields:
+
+```yaml
+CspCfg:
+  params:
+    bands:
+      - [8, 10]
+      - [10, 12]
+      ...
+    selected_channels: ['C3', 'Cz', 'C4', ...]   # subset used for CSP
+    csp_matrices:                                  # list of [n_components × n_selected] matrices
+      - [[...], [...], ...]
+      ...
+```
+
+> **Important:** the CSP yaml must be loaded **inside** the `<node>` tag in the launch file so it populates the node's private namespace (`~CspCfg/...`). This allows two independent Fbcsp instances (MI and CVSA) in hybrid mode without namespace conflicts.
+
+### Node parameters
+
+| Parameter | Description |
+|-----------|-------------|
+| `nchannels` | Number of EEG channels in the NeuroFrame |
+| `samplerate` | Hardware sampling rate (Hz) |
+| `chunkSize` | Samples per callback (`samplerate / framerate`) |
+| `run_mode` | `online` \| `offline` |
+| `signal_type` | `eeg` \| `eeg_eog` |
+| `filter_order` | Butterworth order (default: 4) |
+| `filters_band` | Semicolon-separated band edges, e.g. `"8.0 10.0; 10.0 12.0;"` |
+| `do_car` | Enable CAR filter |
+| `do_ica` | Enable ICA unmixing |
+| `topic_to_pub` | Output topic name |
+
+---
+
+## 4. Launch Files
+
+### Production (hybrid mode — two independent instances)
+
+```bash
+roslaunch launchers_bci evaluation.launch paradigm:=hybrid subject:=S01
+```
+
+Each Fbcsp instance (`processing_fbcsp_mi`, `processing_fbcsp_cvsa`) loads its own CSP yaml inside its `<node>` tag.
+
+### Standalone
+
+```bash
+roslaunch processing_bci launchers/fbcsp.launch
+```
+
+---
+
+## 5. Testing
+
+### 5a. CSV-based test (quick sanity check)
+
+Replays `test/rawdata.csv` chunk by chunk through the full node via a test publisher.
+
+```bash
+roslaunch processing_bci test_node_fbcsp.launch
+# Wait until publisher finishes, then Ctrl+C.
+```
+
+Produces `test/fbcsp_processing.csv` and `test/fbcsp_processing_first_seq.txt`.
+
+Compare with MATLAB:
+
+```matlab
+input_mode = 'csv';
+test_fbcsp   % from workspace root
+```
+
+### 5b. GDF-based test (realistic end-to-end validation)
+
+Replays `test/prova32ch.gdf` (512 Hz, 32 channels) through the real `rosneuro_acquisition` node using the eegdev `datafile` plugin. This exercises:
+
+- Automatic label resolution for CAR and CSP channel selection
+- Correct `nchannels` / `chunkSize` handling
+- Long-session dynamic logger (no fixed-size limit)
+
+```bash
+roslaunch processing_bci test_node_fbcsp_gdf.launch \
+    gdf_file:=$(rospack find processing_bci)/test/prova32ch.gdf \
+    samplerate:=512 \
+    framerate:=16
+# Wait for the file to finish, then Ctrl+C.
+```
+
+Produces in `test/`:
+- `fbcsp_gdf_output.csv` — mean-power features indexed by seq
+- `fbcsp_gdf_output_first_seq.txt` — first seq received (startup frame loss)
+
+Compare with MATLAB:
+
+```matlab
+input_mode = 'gdf';
+test_fbcsp   % from workspace root
+```
+
+### Alignment details
+
+Two independent timing offsets must be corrected before comparing MATLAB and ROS:
+
+**1. `first_seq` — startup frame loss**
+
+`rosneuro_acquisition` may miss the first 1–2 frames at startup. The logger records the first seq it receives in `*_first_seq.txt`. MATLAB starts its processing loop at `seq = first_seq` so both pipelines have identical zero-state IIR filters from the same starting sample.
+
+**2. Acquisition pipeline delay (GDF only)**
+
+When using `rosneuro_acquisition` with the eegdev `datafile` plugin, the acquisition node buffers one frame internally before publishing. ROS frame N therefore carries the samples MATLAB would assign to frame N−1.
+
+The MATLAB script measures this with cross-correlation (`xcorr`) on the first feature component and corrects automatically:
+
+- `xcorr(ros, matlab)` peak at lag +k → MATLAB is k frames ahead of ROS
+- Correction: `ros_aligned = ros(k+1:end)`, `matlab_aligned = matlab(1:end-k)`
+
+Two figures are produced:
+- **RAW** — unaligned comparison (shows the lag visually)
+- **ALIGNED** — lag-corrected comparison (feature traces overlap)
+
+### Logger details
+
+The logger (`test/logger_fbcsp.cpp`) uses a dynamically growing seq-indexed vector — no fixed upper limit. At shutdown it writes the full seq-indexed feature matrix to CSV (rows 0..`max_seq`) and saves `first_seq` in a companion `.txt` file.
+
+---
+
+## 6. Dependencies
+
+| Library | Used for |
+|---------|---------|
+| `rosneuro_msgs` | `NeuroFrame` input message |
+| `rosneuro_filters_butterworth` | IIR Butterworth LP/HP filters |
+| `rosneuro_filters_car` | Common Average Reference spatial filter |
+| `rosneuro_buffers_ringbuffer` | Shift-register ring buffer (NaN-initialised, `isfull()` ↔ no NaN) |
+| `Eigen` | Linear algebra, matrix operations |
+| `yaml-cpp` | YAML parameter loading (via ROS param server) |
