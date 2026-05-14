@@ -1,17 +1,19 @@
 <launch>
 
-    <arg name="paradigm"      default="mi"/>
-    <arg name="samplerate"    default="500"/>
-    <arg name="chunkSize"     default="25"/>
-    <arg name="run_mode"      default="online"/>
-    <arg name="signal_type"   default="eeg"/>
-    <arg name="filter_order"  default="4"/>
-    <arg name="filters_band"  default="8.0 10.0; 10.0 12.0; 12.0 14.0; 8.0 14; 14.0 20.0;"/>
-    <arg name="do_ica"        default="false"/>
-    <arg name="do_car"        default="true"/>
+    <arg name="data_dir"     default="/home/paolo/bci_vr_ws/test_node_data"/>
+    <arg name="out_dir"      default="$(arg data_dir)/processing_bci"/>
+    <arg name="paradigm"     default="mi"/>
+    <arg name="samplerate"   default="500"/>
+    <arg name="chunkSize"    default="25"/>
+    <arg name="run_mode"     default="online"/>
+    <arg name="signal_type"  default="eeg"/>
+    <arg name="filter_order" default="4"/>
+    <arg name="filters_band" default="8.0 10.0; 10.0 12.0; 12.0 14.0; 8.0 14; 14.0 20.0;"/>
+    <arg name="do_ica"       default="false"/>
+    <arg name="do_car"       default="true"/>
 
     <rosparam command="load" file="$(find processing_bci)/cfg/ringbuffer.yaml" subst_value="true"/>
-    <rosparam command="load" file="$(find processing_bci)/cfg/car.yaml" if="$(arg do_car)"/>
+    <rosparam command="load" file="$(find rosneuro_filters_car)/cfg/car.yaml" if="$(arg do_car)"/>
 
     <!-- FBCSP processing node — CSP yaml loaded inside so it goes to private namespace -->
     <node name="processing_fbcsp_node" pkg="processing_bci" type="processing_fbcsp_node" output="screen">
@@ -25,20 +27,20 @@
         <param name="do_ica"       value="$(arg do_ica)"/>
         <param name="do_car"       value="$(arg do_car)"/>
         <param name="topic_to_pub" value="/$(arg paradigm)/eeg_fbcsp"/>
-        <rosparam command="load" file="$(find processing_bci)/cfg/csp/mi/csp_test.yaml"/>
+        <rosparam command="load" file="$(find processing_bci)/cfg/csp/mi/csp_mi_test.yaml"/>
     </node>
 
     <!-- Logger -->
     <node pkg="processing_bci" type="test_logger_fbcsp_processing_bci"
           name="test_logger_fbcsp" output="screen">
-        <param name="output_filename" value="$(find processing_bci)/test/fbcsp_processing.csv"/>
+        <param name="output_filename" value="$(arg out_dir)/fbcsp_processing.csv"/>
         <param name="topic"           value="/$(arg paradigm)/eeg_fbcsp"/>
     </node>
 
     <!-- CSV publisher -->
     <node pkg="processing_bci" type="test_publisher_processing_bci"
           name="test_publisher" output="screen">
-        <param name="csv_file"    value="$(find processing_bci)/test/rawdata.csv"/>
+        <param name="csv_file"    value="$(arg data_dir)/raw_eeg_32ch.csv"/>
         <param name="chunk_size"  value="$(arg chunkSize)"/>
         <param name="sample_rate" value="$(arg samplerate)"/>
     </node>

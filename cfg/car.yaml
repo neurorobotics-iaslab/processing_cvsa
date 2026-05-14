@@ -1,5 +1,0 @@
-CarCfg:
-  name: car
-  type: CarFilterDouble
-  params:
-    EOG_ch_names: ['Fp1', 'Fp2']

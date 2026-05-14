@@ -25,18 +25,19 @@ clear all; clc; close all;
 input_mode = 'gdf';   % 'gdf' | 'csv'
 
 %% --- paths ---
-pkgpath         = './src/processing_bci/';
-car_yaml        = [pkgpath 'cfg/car.yaml'];
-csp_yaml        = [pkgpath 'cfg/csp/mi/csp_test.yaml'];
+data_dir        = './test_node_data/';
+out_dir         = './test_node_data/processing_bci/';
+car_yaml        = './src/rosneuro_filters_car/cfg/car.yaml';
+csp_yaml        = './src/processing_bci/cfg/csp/mi/csp_mi_test.yaml';
 
 if strcmp(input_mode, 'gdf')
-    input_file    = [pkgpath 'test/prova32ch.gdf'];
-    ros_file      = [pkgpath 'test/fbcsp_gdf_output.csv'];
+    input_file    = [data_dir 'prova32ch.gdf'];
+    ros_file      = [out_dir  'fbcsp_gdf_output.csv'];
     framerate     = 16;
     plot_start_s  = 2;    % skip this many seconds at the start ([] = show all)
 else
-    input_file    = [pkgpath 'test/rawdata.csv'];
-    ros_file      = [pkgpath 'test/fbcsp_processing.csv'];
+    input_file    = [data_dir 'raw_eeg_32ch.csv'];
+    ros_file      = [out_dir  'fbcsp_processing.csv'];
     framerate     = 20;
     plot_start_s  = [];   % show full recording
 end
