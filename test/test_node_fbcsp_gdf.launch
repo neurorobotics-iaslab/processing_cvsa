@@ -12,8 +12,9 @@
     <arg name="filters_band" default="8.0 10.0; 10.0 12.0; 12.0 14.0; 8.0 14; 14.0 20.0;"/>
     <arg name="do_ica"       default="false"/>
     <arg name="do_car"       default="true"/>
+    <arg name="EOG_ch_names"  default='[Fp1, Fp2]'/>
 
-    <!-- rosneuro_acquisition replaying a GDF file via eegdev datafile plugin -->
+    <!-- rosneuro_acquisition -->
     <node name="acquisition" pkg="rosneuro_acquisition" type="acquisition" output="screen">
         <param name="~plugin"     value="rosneuro::EGDDevice"/>
         <param name="~devarg"     value="$(arg gdf_file)"/>
@@ -22,9 +23,9 @@
     </node>
 
     <rosparam command="load" file="$(find processing_bci)/cfg/ringbuffer.yaml" subst_value="true"/>
-    <rosparam command="load" file="$(find rosneuro_filters_car)/cfg/car.yaml" if="$(arg do_car)"/>
+    <rosparam command="load" file="$(find rosneuro_filters_car)/cfg/car.yaml" subst_value="true" if="$(arg do_car)"/>
 
-    <!-- FBCSP processing node — CSP yaml loaded inside for private namespace -->
+    <!-- FBCSP processing node -->
     <node name="processing_fbcsp_node" pkg="processing_bci" type="processing_fbcsp_node" output="screen">
         <param name="nchannels"    value="32"/>
         <param name="chunkSize"    value="$(eval int(arg('samplerate')) / int(arg('framerate')))"/>
@@ -39,7 +40,7 @@
         <rosparam command="load" file="$(find processing_bci)/cfg/csp/mi/csp_mi_test.yaml"/>
     </node>
 
-    <!-- Logger: saves seq-indexed features + first_seq offset -->
+    <!-- Logger -->
     <node pkg="processing_bci" type="test_logger_fbcsp_processing_bci"
           name="test_logger_fbcsp" output="screen">
         <param name="output_filename" value="$(arg out_dir)/fbcsp_gdf_output.csv"/>

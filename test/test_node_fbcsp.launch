@@ -1,21 +1,22 @@
 <launch>
 
-    <arg name="data_dir"     default="/home/paolo/bci_vr_ws/test_node_data"/>
-    <arg name="out_dir"      default="$(arg data_dir)/processing_bci"/>
-    <arg name="paradigm"     default="mi"/>
-    <arg name="samplerate"   default="500"/>
-    <arg name="chunkSize"    default="25"/>
-    <arg name="run_mode"     default="online"/>
-    <arg name="signal_type"  default="eeg"/>
-    <arg name="filter_order" default="4"/>
-    <arg name="filters_band" default="8.0 10.0; 10.0 12.0; 12.0 14.0; 8.0 14; 14.0 20.0;"/>
-    <arg name="do_ica"       default="false"/>
-    <arg name="do_car"       default="true"/>
+    <arg name="data_dir"      default="/home/paolo/bci_vr_ws/test_node_data"/>
+    <arg name="out_dir"       default="$(arg data_dir)/processing_bci"/>
+    <arg name="paradigm"      default="mi"/>
+    <arg name="samplerate"    default="500"/>
+    <arg name="chunkSize"     default="25"/>
+    <arg name="run_mode"      default="online"/>
+    <arg name="signal_type"   default="eeg"/>
+    <arg name="filter_order"  default="4"/>
+    <arg name="filters_band"  default="8.0 10.0; 10.0 12.0; 12.0 14.0; 8.0 14; 14.0 20.0;"/>
+    <arg name="do_ica"        default="false"/>
+    <arg name="do_car"        default="true"/>
+    <arg name="EOG_ch_names"  default='[Fp1, Fp2]'/>
 
     <rosparam command="load" file="$(find processing_bci)/cfg/ringbuffer.yaml" subst_value="true"/>
-    <rosparam command="load" file="$(find rosneuro_filters_car)/cfg/car.yaml" if="$(arg do_car)"/>
+    <rosparam command="load" file="$(find rosneuro_filters_car)/cfg/car.yaml"  subst_value="true" if="$(arg do_car)"/>
 
-    <!-- FBCSP processing node — CSP yaml loaded inside so it goes to private namespace -->
+    <!-- FBCSP processing node -->
     <node name="processing_fbcsp_node" pkg="processing_bci" type="processing_fbcsp_node" output="screen">
         <param name="nchannels"    value="32"/>
         <param name="chunkSize"    value="$(arg chunkSize)"/>

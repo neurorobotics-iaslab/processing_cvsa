@@ -35,11 +35,13 @@ if strcmp(input_mode, 'gdf')
     ros_file      = [out_dir  'fbcsp_gdf_output.csv'];
     framerate     = 16;
     plot_start_s  = 2;    % skip this many seconds at the start ([] = show all)
+    componentId = 5;
 else
     input_file    = [data_dir 'raw_eeg_32ch.csv'];
     ros_file      = [out_dir  'fbcsp_processing.csv'];
     framerate     = 20;
-    plot_start_s  = [];   % show full recording
+    plot_start_s  = 2; %[];   % show full recording
+    componentId = 1;
 end
 
 %% --- read first_seq ---
@@ -55,6 +57,12 @@ end
 %% --- load CAR config ---
 car_cfg      = yaml.ReadYaml(car_yaml);
 eog_ch_names = car_cfg.CarCfg.params.EOG_ch_names;
+default_eog_ch_names = [{'Fp1'}, {'Fp2'}];
+if ~iscell(eog_ch_names)
+    warning('EOG_ch_names worng. Defaul values are used: ');
+    disp(default_eog_ch_names)
+    eog_ch_names = default_eog_ch_names;
+end
 
 %% --- load CSP config ---
 csp_cfg    = yaml.ReadYaml(csp_yaml);
@@ -297,7 +305,6 @@ fprintf('MAE feature-1 (raw)     : %.6f\n', mae_raw);
 fprintf('MAE feature-1 (aligned) : %.6f\n', mae_aligned);
 
 %% --- plot: raw ---
-componentId = 1;
 figure;
 subplot(2,1,1);
 hold on;
