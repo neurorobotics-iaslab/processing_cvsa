@@ -102,8 +102,17 @@ bool Fbcsp::configure(void) {
         return false;
     }
 
-    std::string topic_to_pub;
-    this->nh_.param<std::string>("topic_to_pub", topic_to_pub, "/eeg_fbcsp");
+    std::string paradigm, paradigm_upper;
+    if(ros::param::get("~paradigm", paradigm) == false){
+        ROS_ERROR("[%s] Missing 'paradigm' parameter", this->name_.c_str());
+        return false;
+    }
+    paradigm_upper = paradigm;
+    std::transform(paradigm_upper.begin(), paradigm_upper.end(), paradigm_upper.begin(), [](unsigned char c) {
+        return std::toupper(c);
+    });
+    this->name_ = this->name_  + " " + paradigm_upper;
+    std::string topic_to_pub = "/" + paradigm + "/eeg_fbcsp";
     ROS_INFO("[%s] topic_to_pub set to: %s", this->name_.c_str(), topic_to_pub.c_str());
     this->pub_ = this->nh_.advertise<processing_bci::eeg_fbcsp>(topic_to_pub, 1);
 

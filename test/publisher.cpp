@@ -6,9 +6,9 @@
 #include "processing_bci/utils.hpp"
 
 static const std::vector<std::string> CH_LABELS_32 = {
-    "Fp1","Fp2","F3","Fz","F4","FC1","FC2","C3","Cz","C4",
-    "CP1","CP2","P3","Pz","P4","POz","O1","O2","CPz","F1",
-    "F2","FC5","FCz","FC6","C1","C2","CP5","CP6","P5","P1","P2","P6"
+    "Fp1","Fz","F3","F7","F9","FC5","FC1","C3","T7","P9",
+    "CP5","Cp1","Pz","P3","P7","O1","Oz","O2","P4","P8",
+    "P10","CP6","CP2","Cz","C4","T8","F10","FC6","FC2","F4","F8","Fp2"
 };
 
 int main(int argc, char** argv) {

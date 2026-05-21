@@ -8,7 +8,8 @@
     <arg name="run_mode"      default="online"/>
     <arg name="signal_type"   default="eeg"/>
     <arg name="filter_order"  default="4"/>
-    <arg name="filters_band"  default="8.0 10.0; 10.0 12.0; 12.0 14.0; 8.0 14; 14.0 20.0;"/>
+    <arg name="filters_band_mi"   default="8.0 12.0; 10.0 14.0; 12.0 16.0; 14.0 18.0; 16.0 22.0; 20.0 30.0;"/>
+    <arg name="filters_band_cvsa" default="7.0 11.0; 9.0 13.0; 11.0 15.0;"/>
     <arg name="do_ica"        default="false"/>
     <arg name="do_car"        default="true"/>
     <arg name="EOG_ch_names"  default='[Fp1, Fp2]'/>
@@ -24,10 +25,10 @@
         <param name="filter_order" value="$(arg filter_order)"/>
         <param name="run_mode"     value="$(arg run_mode)"/>
         <param name="signal_type"  value="$(arg signal_type)"/>
-        <param name="filters_band" value="$(arg filters_band)"/>
+        <param name="filters_band" value="$(arg filters_band_mi)"/>
         <param name="do_ica"       value="$(arg do_ica)"/>
         <param name="do_car"       value="$(arg do_car)"/>
-        <param name="topic_to_pub" value="/$(arg paradigm)/eeg_fbcsp"/>
+        <param name="paradigm"     value="$(arg paradigm)"/>
         <rosparam command="load" file="$(find processing_bci)/cfg/csp/mi/csp_mi_test.yaml"/>
     </node>
 
