@@ -103,8 +103,9 @@ CspCfg:
       - [8, 10]
       - [10, 12]
       ...
-    selected_channels: ['C3', 'Cz', 'C4', ...]   # subset used for CSP
-    csp_matrices:                                  # list of [n_components × n_selected] matrices
+    selected_channels: ['C3', 'Cz', 'C4', ...]         # channel subset used for CSP
+    selected_components_indices: [0, 1, 2, 3]           # CSP component indices to publish
+    csp_matrices:                                        # list of [n_components × n_selected] matrices
       - [[...], [...], ...]
       ...
 ```
