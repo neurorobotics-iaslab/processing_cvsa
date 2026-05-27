@@ -1,0 +1,5 @@
+*.yaml
+
+!/cfg/csp/cvsa/csp_cvsa_test.yaml
+!/cfg/csp/cvsa/csp_cvsa_test.yaml
+!/cfg/ringbuffer.yaml
