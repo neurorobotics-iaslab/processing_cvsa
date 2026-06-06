@@ -80,7 +80,7 @@ CarCfg:
 ```yaml
 RingBufferCfg:
   name: ringbuffer
-  type: RingBufferFloat
+  type: RingBufferDouble
   params:
     size: $(arg samplerate)   # 1-second buffer (substituted at launch time)
 ```

@@ -1,5 +1,5 @@
 RingBufferCfg:
   name: ringbuffer
-  type: RingBufferFloat
+  type: RingBufferDouble
   params: 
     size: $(arg samplerate)
