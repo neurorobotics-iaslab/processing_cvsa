@@ -38,7 +38,7 @@ protected:
 
     std::string name_;
 
-    std::vector<rosneuro::Buffer<float>*> buffers_;
+    std::vector<rosneuro::Buffer<double>*> buffers_;
     bool has_new_data_;
     rosneuro::DynamicMatrix<float> data_in_;
     int chunkSize_; // chunk size

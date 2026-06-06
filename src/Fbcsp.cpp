@@ -222,7 +222,7 @@ bool Fbcsp::configure(void) {
 
     // Buffer configuration 
     for(int i = 0; i < this->nfilters_; i++){
-        this->buffers_.push_back(new rosneuro::RingBuffer<float>());
+        this->buffers_.push_back(new rosneuro::RingBuffer<double>());
         if(!this->buffers_.back()->configure("RingBufferCfg")){
             ROS_ERROR("[%s %.2f-%.2f Hz] Buffer not configured correctly", 
                 this->buffers_.back()->name().c_str(),
@@ -382,7 +382,7 @@ Fbcsp::ApplyResults Fbcsp::apply(void) {
         for(int i = 0; i < this->nfilters_; i++) {
             Eigen::MatrixXd data1 = this->filters_low_[i].apply(car_data);
             Eigen::MatrixXd data2 = this->filters_high_[i].apply(data1);
-            this->buffers_[i]->add(data2.cast<float>()); // [samples x channels]
+            this->buffers_[i]->add(data2); // [samples x channels], double
         }
 
         if(!this->buffers_[0]->isfull()) {
@@ -391,24 +391,24 @@ Fbcsp::ApplyResults Fbcsp::apply(void) {
 
         Eigen::MatrixXd all_processed_signals(this->ncomponents_, this->nfilters_); // [components x bands]
 
-        // FBCSP spatial filter and variance
+        // FBCSP spatial filter and variance (all in double — matches MATLAB exactly)
         for(int i = 0; i < this->nfilters_; i++) {
-            Eigen::MatrixXf data_buffer = this->buffers_[i]->get(); // [samples x channels]
-            
+            Eigen::MatrixXd data_buffer = this->buffers_[i]->get(); // [samples x channels]
+
             // Extract selected channels: [bufferSize x n_selected]
             int n_sel = this->csp_ch_idx_.size();
-            Eigen::MatrixXf buf_selected(data_buffer.rows(), n_sel);
+            Eigen::MatrixXd buf_selected(data_buffer.rows(), n_sel);
             for(int j = 0; j < n_sel; j++)
                 buf_selected.col(j) = data_buffer.col(this->csp_ch_idx_[j]);
 
             // CSP spatial filter: [bufferSize x n_components]
             // csp_matrices_[i] is [n_components x n_selected]
-            Eigen::MatrixXf csp_data = buf_selected * this->csp_matrices_[i].transpose().cast<float>();
+            Eigen::MatrixXd csp_data = buf_selected * this->csp_matrices_[i].transpose();
 
             // Mean power: mean(x^2) — matches MNE CSP with log=True
-            Eigen::VectorXf variance = csp_data.colwise().squaredNorm() / csp_data.rows();
+            Eigen::VectorXd variance = csp_data.colwise().squaredNorm() / csp_data.rows();
 
-            all_processed_signals.col(i) = variance.cast<double>();
+            all_processed_signals.col(i) = variance;
         }
 
         this->set_message(all_processed_signals);
